@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(pip *)",
+      "PowerShell(python -m venv .venv)",
+      "PowerShell(pip list *)",
+      "PowerShell(pip install *)",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\Activate)",
+      "PowerShell(.\\\\.venv\\\\Scripts\\\\Activate; $env:PYTHONIOENCODING='utf-8'; python test_runner.py 2>&1)",
+      "PowerShell(Get-ChildItem -Recurse -File | Where-Object { $_.FullName -notmatch '\\\\.venv|__pycache__' } | ForEach-Object { $size = \\(Get-Content $_.FullName | Measure-Object -Line\\).Lines; Write-Host \"$\\($_.FullName.Replace\\('C:\\\\Users\\\\Administrator\\\\Desktop\\\\try\\\\', ''\\)\\) \\($size lines\\)\" })",
+      "PowerShell($total = 0; Get-ChildItem -Recurse -File | Where-Object { $_.FullName -notmatch '\\\\.venv|__pycache__' } | ForEach-Object { $total += \\(Get-Content $_.FullName | Measure-Object -Line\\).Lines }; Write-Host \"总代码行数: $total 行\")",
+      "PowerShell(& \".venv\\\\Scripts\\\\python.exe\" --version 2>&1)",
+      "PowerShell(& \".venv\\\\Scripts\\\\pip.exe\" list --format=columns 2>&1)",
+      "PowerShell(Get-ChildItem -Directory -Exclude .venv, __pycache__, .claude | ForEach-Object { $_.Name; Get-ChildItem $_.FullName -Name | ForEach-Object { \"  └─ $_\" }; \"\" })",
+      "PowerShell(Get-ChildItem C:\\\\Users\\\\Administrator\\\\Desktop\\\\try -File | Where-Object { $_.Name -ne '.env' -and $_.Name -ne '.gitignore' -and $_.Extension -notin '.py','.yaml','.md' -or \\($_.LastWriteTime -gt '2026-05-31 09:45:00' -and $_.Name -ne '.env'\\) } | Select-Object Name, LastWriteTime, Length | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem C:\\\\Users\\\\Administrator\\\\Desktop\\\\try -File | Where-Object { $_.LastWriteTime -gt '2026-05-31 10:00:00' } | Select-Object Name, LastWriteTime, Length | Format-Table -AutoSize)",
+      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -c \"import sys; sys.path.insert\\(0, '.'\\); from morning.news_fetcher import fetch_all_news; from morning.claude_analyzer import analyze_news; news = fetch_all_news\\(\\); print\\(f'共抓取 {len\\(news\\)} 条新闻'\\); result = analyze_news\\(news\\); print\\(f'分析完成: 情绪={result.market_sentiment}'\\); print\\(f'利好板块: {len\\(result.good_sectors\\)}'\\); print\\(f'利空板块: {len\\(result.bad_sectors\\)}'\\); print\\(f'提及个股: {len\\(result.stock_mentions\\)}'\\); print\\(f'关键事件: {len\\(result.key_events\\)}'\\)\")",
+      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe run_morning.py --dry-run 2>&1)",
+      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -c \"import sys; sys.path.insert\\(0, '.'\\); from morning.ai_analyzer import analyze_news, AnalysisResult; print\\('ai_analyzer 导入成功'\\); from morning.dingtalk_sender import send_analysis, build_markdown; print\\('dingtalk_sender 导入成功'\\); print\\('所有模块导入正常 ✅'\\)\")",
+      "WebSearch",
+      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe run_morning.py --send 2>&1)",
+      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe test_dingtalk.py)",
+      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe run_morning.py --dry-run 2>&1 | Select-String -Pattern \"☰|通知\")"
+    ]
+  }
+}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="text-align:center; padding:60px;">
+    <h1 style="font-size:36px; margin-bottom:16px;">🚀 全能数据平台</h1>
+    <p style="color:#666; font-size:18px; margin-bottom:32px; max-width:600px; margin-left:auto; margin-right:auto;">
+        集网页爬虫、数据分析、机器学习、Web服务与桌面应用为一体的综合性数据平台
+    </p>
+    <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+        <a href="/crawler" class="btn btn-primary" style="padding:12px 32px; font-size:16px;">
+            🕷️ 爬虫管理
+        </a>
+        <a href="/analysis" class="btn btn-success" style="padding:12px 32px; font-size:16px;">
+            📊 数据分析
+        </a>
+        <a href="/dashboard" class="btn" style="padding:12px 32px; font-size:16px; background:#722ed1; color:#fff;">
+            📈 仪表盘
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <h2>🕷️ 网页爬虫</h2>
+            <p style="color:#666; margin-bottom:12px;">强大的网页数据采集引擎</p>
+            <ul style="padding-left:20px; color:#666; line-height:2;">
+                <li>支持多线程批量爬取</li>
+                <li>HTML表格自动提取</li>
+                <li>文章内容智能抽取</li>
+                <li>定时任务自动执行</li>
+                <li>数据导出 CSV / JSON</li>
+            </ul>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card">
+            <h2>📊 数据分析</h2>
+            <p style="color:#666; margin-bottom:12px;">全面的数据分析和机器学习能力</p>
+            <ul style="padding-left:20px; color:#666; line-height:2;">
+                <li>数据清洗与预处理</li>
+                <li>统计分析自动摘要</li>
+                <li>8种图表可视化</li>
+                <li>分类/回归/聚类模型</li>
+                <li>模型评估与调参</li>
+            </ul>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card">
+            <h2>🖥️ 桌面应用</h2>
+            <p style="color:#666; margin-bottom:12px;">原生桌面 GUI 应用</p>
+            <ul style="padding-left:20px; color:#666; line-height:2;">
+                <li>PyQt6 原生界面</li>
+                <li>爬虫控制面板</li>
+                <li>数据可视化查看</li>
+                <li>实时图表展示</li>
+                <li>多标签页管理</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
