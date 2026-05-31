@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 import pandas as pd
 
 from config import LOG_LEVEL, LOG_FORMAT
-from strategy.board_chaser import BoardChaserStrategy
+from strategy.board_chaser import BoardChaserStrategy, _PASS_SCORE
 from strategy.data_fetcher import get_today_str
 
 # 日志
@@ -42,10 +42,10 @@ def main():
     )
     parser.add_argument("--start", default=None, help="开始日期 YYYYMMDD")
     parser.add_argument("--end", default=None, help="结束日期 YYYYMMDD")
-    parser.add_argument("--rating", type=int, default=60, help="最低评分门槛 (默认60)")
+    parser.add_argument("--score", type=int, default=14, help="最低评分门槛 (默认14/40分)")
     parser.add_argument("--max-buy", type=int, default=3, help="每日最多买入 (默认3)")
     parser.add_argument("--capital", type=float, default=1_000_000, help="初始资金 (默认1,000,000)")
-    parser.add_argument("--quick", action="store_true", help="快速模式(只跑最近20天)")
+    parser.add_argument("--quick", action="store_true", help="快速模式(只跑最近30天)")
     parser.add_argument("--export", action="store_true", help="导出交易流水CSV")
     parser.add_argument("--silent", action="store_true", help="安静模式(只输出结果)")
 
@@ -76,7 +76,7 @@ def main():
 ╠══════════════════════════════════════╣
 ║  区间: {start_date} → {end_date}          ║
 ║  资金: {args.capital:>10,.0f} 元            ║
-║  评分门槛: {args.rating:>2}分                 ║
+║  评分门槛: {args.score:>2}/{_PASS_SCORE}分              ║
 ║  每日买入: {args.max_buy:>2}只                 ║
 ╚══════════════════════════════════════╝
 """)
@@ -86,7 +86,7 @@ def main():
         start_date=start_date,
         end_date=end_date,
         max_daily_buy=args.max_buy,
-        min_rating=args.rating,
+        min_score=args.score,
     )
 
     # 输出报告

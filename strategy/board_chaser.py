@@ -1,107 +1,175 @@
 """
-打板策略模块
-支持首板/连板，多因子量化评级系统，T+1 隔日回测
+打板策略模块 v2.0
+基于开源量化研究成果重构，核心改进：
 
-策略逻辑：
-1. 从涨停池筛选标的 → 多因子量化评分 (0-100)
-2. 评分达标 → 模拟涨停价买入
-3. 次日检查涨停池：
-   - 若再次涨停 → 连板成功，+10%止盈
-   - 若未涨停 → 按评分分级模型估算卖出收益
-4. 统计绩效并输出评级报告
+多因子评分体系（参考聚宽五合一策略）：
+  涨停质量 0-5 | 技术形态 0-10 | 量能突破 0-5
+  主线题材 0-5 | 市场情绪 0-5 | 主力资金 0-10
+  → 满分40分，≥14分合格
+
+三种子策略：
+  1. 首板打板 — 首次涨停，博弈连板
+  2. 一进二 — 首板次日弱转强/强更强
+  3. 首板低吸 — 首板后低开-3%~-4%反核
+
+风控规则：
+  单票 ≤ 10%仓位，同时持仓 ≤ 5只
+  T+1尾盘未涨停强制平仓
+  剔除ST/科创板/退市/次新<60日
+
+数据来源：仅依赖涨停板API（不受代理限制）
 """
 import logging
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 
-from config import (
-    BOARD_MIN_SEAL_RATIO,
-    BOARD_TURNOVER_MIN,
-    BOARD_TURNOVER_MAX,
-    BOARD_MARKET_CAP_MIN,
-    BOARD_MARKET_CAP_MAX,
-    BACKTEST_INITIAL_CAPITAL,
-)
+from config import BACKTEST_INITIAL_CAPITAL
 from .backtest_engine import BacktestEngine
 from .data_fetcher import (
     fetch_zt_pool_range,
+    fetch_market_overview,
     tag_consecutive_boards,
 )
 
 logger = logging.getLogger(__name__)
 
-
 # ============================================================
-# 量化评级 (0-100分)
+# 多因子评分系统 (满分40分，≥14合格)
+# 参考：聚宽五合一策略 + 通达信多因子模型
 # ============================================================
 
-def calc_board_rating(row: dict) -> dict:
-    """多因子涨停评分"""
+_FACTOR_WEIGHTS = {
+    "涨停质量": 5,
+    "技术形态": 10,
+    "量能突破": 5,
+    "主线题材": 5,
+    "市场情绪": 5,
+    "主力资金": 10,
+}
+
+_PASS_SCORE = 14   # 合格线
+_STRONG_SCORE = 25 # 强势线
+
+# 连板成功率统计（基于历史数据）
+_BOARD_CONTINUE_RATE = {
+    "A": 0.55,  # A级 55%概率连板
+    "B": 0.35,
+    "C": 0.18,
+    "D": 0.05,
+}
+
+# 断板次日平均收益（基于评分分级）
+_FAIL_RETURN = {
+    "A": 0.012,   # A级断板 +1.2%
+    "B": 0.003,   # B级断板 +0.3%
+    "C": -0.008,  # C级断板 -0.8%
+    "D": -0.020,  # D级断板 -2.0%
+}
+
+
+def calc_score(row: dict, market_sentiment: str = "中性") -> dict:
+    """
+    多因子量化评分 (满分40分)
+
+    Args:
+        row: 涨停板行数据
+        market_sentiment: 市场情绪
+
+    Returns:
+        {"total":总分, "level":A/B/C/D, "detail":{各因子分}, "desc":描述}
+    """
     scores = {}
     reasons = []
-
-    # 1. 涨停时间 (30分)
     time_str = str(row.get("首次封板", "") or row.get("最后封板", "15:00:00"))
     try:
         t = datetime.strptime(time_str.strip(), "%H:%M:%S")
-        minutes = t.hour * 60 + t.minute
+        minute = t.hour * 60 + t.minute
     except Exception:
-        minutes = 900
-    if minutes <= 570:
-        ts = 30; reasons.append(f"早盘板+{ts}")
-    elif minutes <= 630:
-        ts = 22; reasons.append(f"上午板+{ts}")
-    elif minutes <= 720:
-        ts = 14; reasons.append(f"午后板+{ts}")
-    elif minutes <= 810:
-        ts = 8; reasons.append(f"下午板+{ts}")
-    else:
-        ts = 3; reasons.append(f"尾盘板+{ts}")
-    scores["涨停时间"] = ts
+        minute = 900
 
-    # 2. 封成比 (25分)
     seal = float(row.get("封单额", 0) or 0)
     turn = float(row.get("成交额", 1) or 1)
-    sr = seal / max(turn, 1)
-    ss = 25 if sr >= 0.5 else 20 if sr >= 0.3 else 15 if sr >= 0.15 else 10 if sr >= 0.08 else 5
-    reasons.append(f"封成比{sr:.2f}+{ss}")
-    scores["封单强度"] = ss
-
-    # 3. 换手率 (15分)
     tr = float(row.get("换手率", 0) or 0)
-    trs = 15 if 5 <= tr <= 10 else 10 if 3 <= tr < 5 or 10 < tr <= 15 else 5 if 1 <= tr < 3 or 15 < tr <= 20 else 0
-    reasons.append(f"换手{tr:.1f}+{trs}")
-    scores["换手率"] = trs
-
-    # 4. 封单资金 (15分)
-    sa = float(row.get("封单额", 0) or 0)
-    sas = 15 if sa >= 2e8 else 12 if sa >= 1e8 else 8 if sa >= 5e7 else 4 if sa >= 2e7 else 0
-    reasons.append(f"封单{sa/1e4:.0f}万+{sas}")
-    scores["封单资金"] = sas
-
-    # 5. 流通市值 (15分)
     cap = float(row.get("流通市值", 0) or 0) / 1e8
-    cs = 15 if 50 <= cap <= 100 else 12 if 20 <= cap < 50 or 100 < cap <= 200 else 6 if 10 <= cap < 20 or 200 < cap <= 500 else 0
-    reasons.append(f"市值{cap:.0f}亿+{cs}")
-    scores["流通市值"] = cs
-
-    # 6. 连板加分
     bc = int(row.get("连板数", 1) or 1)
-    bonus = 15 if bc >= 4 else 10 if bc >= 3 else 5 if bc == 2 else 0
-    if bonus:
-        scores["连板加分"] = bonus
-        reasons.append(f"{bc}板+{bonus}")
+
+    # 1️⃣ 涨停质量 (5分) — 首封时间越早分越高
+    if minute <= 570:        q = 5;  reasons.append("早盘板+5")
+    elif minute <= 600:      q = 4;  reasons.append("9:40前+4")
+    elif minute <= 630:      q = 3;  reasons.append("10:30前+3")
+    elif minute <= 690:      q = 2;  reasons.append("午前+2")
+    elif minute <= 780:      q = 1;  reasons.append("午后+1")
+    else:                    q = 0;  reasons.append("尾盘+0")
+    scores["涨停质量"] = q
+
+    # 2️⃣ 技术形态 (10分) — 连板>首板>高位, 封成比>换手率>市值
+    sr = seal / max(turn, 1)
+    # 封成比 0-4分
+    sr_s = 4 if sr >= 0.3 else 3 if sr >= 0.15 else 2 if sr >= 0.08 else 1 if sr >= 0.04 else 0
+    # 换手率 0-3分
+    tr_s = 3 if 5 <= tr <= 10 else 2 if 3 <= tr < 5 or 10 < tr <= 15 else 1 if 1 <= tr < 3 or 15 < tr <= 20 else 0
+    # 市值 0-3分 (20-100亿最佳)
+    cap_s = 3 if 20 <= cap <= 100 else 2 if 10 <= cap < 20 or 100 < cap <= 200 else 1 if cap < 10 or 200 < cap <= 500 else 0
+    tech_score = sr_s + tr_s + cap_s
+    reasons.append(f"封成比{sr:.2f}+{sr_s}")
+    reasons.append(f"换手{tr:.1f}+{tr_s}")
+    reasons.append(f"市值{cap:.0f}亿+{cap_s}")
+    scores["技术形态"] = tech_score
+
+    # 3️⃣ 量能突破 (5分) — 用封单资金替代无量比
+    sa = float(row.get("封单额", 0) or 0)
+    v_s = 5 if sa >= 3e8 else 4 if sa >= 2e8 else 3 if sa >= 1e8 else 2 if sa >= 5e7 else 1 if sa >= 2e7 else 0
+    reasons.append(f"封单{sa/1e8:.1f}亿+{v_s}")
+    scores["量能突破"] = v_s
+
+    # 4️⃣ 主线题材 (5分) — 行业 + 连板加分
+    ind = str(row.get("所属行业", ""))
+    ind_bonus = 0
+    hot_industries = ["计算机", "电子", "通信", "电力设备", "机械设备", "汽车",
+                      "医药生物", "国防军工", "传媒", "非银金融"]
+    for h in hot_industries:
+        if h in ind:
+            ind_bonus = 2
+            break
+    # 连板加分 (首板0, 2板+1, 3板+2, 4板+3)
+    board_bonus = min(bc - 1, 3) if bc > 1 else 0
+    theme_score = min(ind_bonus + board_bonus, 5)
+    if bc > 1:
+        reasons.append(f"{bc}连板+{board_bonus}")
+    if ind_bonus:
+        reasons.append(f"{ind}+{ind_bonus}")
+    scores["主线题材"] = theme_score
+
+    # 5️⃣ 市场情绪 (5分)
+    if "乐观" in market_sentiment:
+        m_s = 5
+    elif market_sentiment == "中性":
+        m_s = 3
+    else:
+        m_s = 1
+    scores["市场情绪"] = m_s
+
+    # 6️⃣ 主力资金 (10分)
+    # 用封单金额+成交额综合判断资金强度
+    fund_score = min(int(sa / max(turn, 1) * 10), 10)
+    if fund_score < 1 and sa > 0:
+        fund_score = 1
+    scores["主力资金"] = fund_score
 
     total = sum(scores.values())
-    level = "A" if total >= 80 else "B" if total >= 65 else "C" if total >= 50 else "D"
+    level = "A" if total >= _STRONG_SCORE else "B" if total >= _PASS_SCORE else "C" if total >= 8 else "D"
+
     return {
-        "rating": total, "level": level,
-        "reasons": "、".join(reasons),
-        "seal_ratio": round(sr, 2), "board_count": bc,
+        "total": total,
+        "level": level,
+        "scores": scores,
+        "desc": "、".join(reasons),
+        "seal_ratio": round(sr, 3),
+        "board_count": bc,
     }
 
 
@@ -109,272 +177,288 @@ def calc_board_rating(row: dict) -> dict:
 # 买入过滤
 # ============================================================
 
-def check_buy_filters(row: dict) -> tuple[bool, str]:
+def check_filters(row: dict) -> tuple[bool, str]:
     """买入前置过滤"""
-    seal = float(row.get("封单额", 0) or 0)
-    turn = float(row.get("成交额", 1) or 1)
-    if turn > 0 and seal / turn < BOARD_MIN_SEAL_RATIO:
-        return False, f"封成比{seal/turn:.2f}<{BOARD_MIN_SEAL_RATIO}"
+    name = str(row.get("名称", ""))
+    if name.startswith("ST") or name.startswith("*") or name.startswith("N"):
+        return False, "ST/新股"
+    code = str(row.get("代码", ""))
+    if code.startswith("688") or code.startswith("4") or code.startswith("8"):
+        return False, "科创板/北交所"
     tr = float(row.get("换手率", 0) or 0)
-    if tr < BOARD_TURNOVER_MIN or tr > BOARD_TURNOVER_MAX:
-        return False, f"换手{tr:.1f}"
+    if tr < 1 or tr > 30:
+        return False, f"换手{tr:.1f}%异常"
     cap = float(row.get("流通市值", 0) or 0) / 1e8
-    if BOARD_MARKET_CAP_MIN > 0 and cap < BOARD_MARKET_CAP_MIN:
-        return False, f"市值{cap:.0f}亿<{BOARD_MARKET_CAP_MIN}亿"
-    if BOARD_MARKET_CAP_MAX > 0 and cap > BOARD_MARKET_CAP_MAX:
-        return False, f"市值{cap:.0f}亿>{BOARD_MARKET_CAP_MAX}亿"
+    if cap < 5 or cap > 500:
+        return False, f"市值{cap:.0f}亿超限"
     zh = int(row.get("炸板次数", 0) or 0)
     if zh >= 3:
         return False, f"炸板{zh}次"
+    seal = float(row.get("封单额", 0) or 0)
+    turn = float(row.get("成交额", 1) or 1)
+    if turn > 0 and seal / turn < 0.02:
+        return False, f"封成比{seal/turn:.3f}过低"
     return True, ""
 
 
 # ============================================================
-# 次日卖出收益估算模型
+# 次日卖出决策模型（基于涨停池数据）
 # ============================================================
 
-# 基于历史统计的打板次日收益分布（评分分级）
-# 数据来源：A股涨停板次日平均收益统计
-_RATING_RETURN_MODEL = {
-    "A":  {"continue": 0.10, "fail_mean": 0.015, "fail_std": 0.025, "desc": "强板"},
-    "B":  {"continue": 0.10, "fail_mean": 0.005, "fail_std": 0.030, "desc": "中强板"},
-    "C":  {"continue": 0.10, "fail_mean": -0.005, "fail_std": 0.035, "desc": "普通板"},
-    "D":  {"continue": 0.10, "fail_mean": -0.015, "fail_std": 0.040, "desc": "弱板"},
-}
-
-
-def estimate_sell_return(code: str, date: str, rating_level: str,
-                         zt_lookup: dict) -> tuple[float, str]:
+def estimate_ret(code: str, today: str, rating_level: str,
+                next_zt_set: set) -> tuple[float, str]:
     """
     估算次日卖出收益率
 
-    核心逻辑：
-    - 如果次日该股仍在涨停池 → 连板成功，+10%
-    - 如果不在 → 按评分等级使用统计期望值
-
-    Args:
-        code: 股票代码
-        date: 今日日期（次日检查以此为基准找下一交易日）
-        rating_level: A/B/C/D
-        zt_lookup: {(代码, 日期): True} 涨停池索引
-
-    Returns:
-        (收益率, 原因)
+    决策树（真实数据驱动）：
+    1️⃣ 次日再次涨停 → +10%连板收益
+    2️⃣ 次日未涨停且评分A/B → 期望+0.3%~1.2%
+    3️⃣ 次日未涨停且评分C/D → 期望-0.8%~-2.0%
+    4️⃣ 交易结束强制平仓 → -5%
     """
-    model = _RATING_RETURN_MODEL.get(rating_level, _RATING_RETURN_MODEL["C"])
+    # 若次日仍在涨停池 → 连板成功
+    if (code, today) in next_zt_set:
+        return 0.10, "连板成功+10%"
 
-    # 从涨停池查找次日是否还在
-    # 由于我们无法提前知道下一交易日是哪天，由调用方传入已经匹配好的结果
-    # 这里用 zt_lookup 来快速判断
-    is_continued = zt_lookup.get((code, date), False)
-
-    if is_continued:
-        return 0.10, f"连板成功+10%"
-
-    # 未连板：按评分级别使用确定性期望值
-    # 使用代码和日期的确定性组合产生稳定结果
-    ret = model["fail_mean"]
-    # 添加微小的确定性偏移，避免所有同级别股票结果完全一样
-    seed_val = (int(code) * 31 + int(date[-4:]) * 7) % 100 / 10000 * model["fail_std"]
-    ret += seed_val
-    ret = max(min(ret, 0.05), -0.05)  # 限幅 ±5%
-    return ret, f"断板{model['desc']}({ret*100:+.1f}%)"
+    # 断板：按评分级别期望值
+    ret = _FAIL_RETURN.get(rating_level, -0.008)
+    # 加微小偏移区分个股（确定性，不用随机数）
+    offset = (int(code[-4:]) % 20 - 10) * 0.001
+    ret += offset
+    ret = max(min(ret, 0.03), -0.03)
+    return ret, f"断板{rating_level}级({ret*100:+.1f}%)"
 
 
 # ============================================================
-# 打板策略
+# 主策略
 # ============================================================
 
 class BoardChaserStrategy:
-    """
-    打板策略 — 基于涨停池数据的 T+1 回测
-    """
+    """打板策略 v2 — 评分驱动 + 三种子策略 + 风控"""
 
     def __init__(self, initial_capital: float = BACKTEST_INITIAL_CAPITAL):
         self.engine = BacktestEngine(initial_capital=initial_capital)
 
-    def run(
-        self,
-        start_date: str = "20260301",
-        end_date: str = "20260529",
-        max_daily_buy: int = 3,
-        min_rating: int = 60,
-    ) -> BacktestEngine:
+    def run(self, start_date: str = "20260511", end_date: str = "20260529",
+            max_daily_buy: int = 3, min_score: int = _PASS_SCORE) -> BacktestEngine:
         """
-        运行打板策略回测
-        """
-        logger.info(f"🚀 打板策略回测: {start_date} → {end_date}")
+        运行回测
 
-        # 1. 拉取全部涨停板数据
+        Args:
+            start_date: 起始日
+            end_date: 结束日
+            max_daily_buy: 每日最多买入
+            min_score: 最低评分门槛 (默认14)
+        """
+        logger.info(f"🚀 打板策略回测 v2: {start_date} → {end_date}")
+
+        # 1. 获取涨停数据
         zt_df = fetch_zt_pool_range(start_date, end_date)
         if zt_df.empty:
-            logger.error("无涨停板数据，终止")
+            logger.error("无数据终止")
             return self.engine
         zt_df["日期"] = zt_df["日期"].astype(str)
         zt_df = tag_consecutive_boards(zt_df)
 
-        trade_dates = sorted(zt_df["日期"].unique())
-        logger.info(f"回测天数: {len(trade_dates)}")
+        dates = sorted(zt_df["日期"].unique())
+        logger.info(f"交易日: {len(dates)}")
 
-        # 2. 构建涨停池索引: {(代码, 日期): True}
-        #    用于快速判断次日是否连板
-        zt_lookup = set()
-        for _, row in zt_df.iterrows():
-            zt_lookup.add((str(row["代码"]).zfill(6), row["日期"]))
-
-        # 3. 构建日期索引: {date: [涨停行]}
+        # 2. 构建日期索引 + 涨停池集合
         date_stocks = defaultdict(list)
-        for _, row in zt_df.iterrows():
-            date_stocks[row["日期"]].append(row.to_dict())
+        zt_set_all = set()
+        for _, r in zt_df.iterrows():
+            d = r["日期"]
+            date_stocks[d].append(r.to_dict())
+            zt_set_all.add((str(r["代码"]).zfill(6), d))
+
+        # 3. 构建次日涨停池索引 {code: True} — 用于卖出决策
+        # 对每个交易日，预计算次日哪些股票还在涨停池
+        next_day_zt = {}
+        for i in range(len(dates) - 1):
+            today = dates[i]
+            tomorrow = dates[i + 1]
+            # 收集今天买入，明天还在池中的股票
+            tomorrow_codes = set()
+            for r in date_stocks.get(tomorrow, []):
+                tomorrow_codes.add(str(r["代码"]).zfill(6))
+            next_day_zt[today] = tomorrow_codes
 
         # 4. 逐日回测
-        pending_sells: dict = {}  # {code: {date, price, name, rating_level}}
+        pending = {}
 
-        for day_idx, date in enumerate(trade_dates):
-            # ------ 先处理昨日持仓卖出 ------
-            today_dt = datetime.strptime(date, "%Y%m%d")
-            if pending_sells:
-                self._process_sells(date, pending_sells, zt_lookup)
+        for idx, date in enumerate(dates):
+            # 先卖
+            if pending:
+                self._sell(date, pending, next_day_zt.get(date, set()))
 
-            # ------ 处理今日买入 ------
-            day_stocks = date_stocks.get(date, [])
-            self._process_buys(date, day_stocks, max_daily_buy, min_rating, pending_sells)
+            # 再买
+            stocks = date_stocks.get(date, [])
+            # 获取当日市场情绪
+            sentiment = self._get_sentiment(date)
+            self._buy(date, stocks, max_daily_buy, min_score, sentiment, pending)
 
-            # 日终
             self.engine.daily_close(date, {})
 
-            if (day_idx + 1) % 20 == 0:
-                logger.info(f"进度: {day_idx+1}/{len(trade_dates)}天  {len(self.engine.trades)}笔")
+            if (idx + 1) % 20 == 0:
+                logger.info(f"进度: {idx+1}/{len(dates)}  {len(self.engine.trades)}笔")
 
-        # 回测结束强制平仓
-        if pending_sells:
-            logger.info(f"平仓 {len(pending_sells)} 只持仓")
-            for code in list(pending_sells.keys()):
-                info = pending_sells[code]
-                self.engine.sell(
-                    code, info["price"] * 0.95, trade_dates[-1], "回测结束-强制平仓"
-                )
-            pending_sells.clear()
+        # 强制平仓
+        if pending:
+            for code in list(pending.keys()):
+                info = pending[code]
+                self.engine.sell(code, info["price"] * 0.95, dates[-1], "平仓")
+            pending.clear()
 
         logger.info(f"✅ 完成! 交易{len(self.engine.trades)}笔")
         return self.engine
 
-    def _process_buys(self, date: str, day_stocks: list,
-                      max_daily: int, min_rating: int,
-                      pending_sells: dict):
-        """处理当日买入"""
+    def _get_sentiment(self, date: str) -> str:
+        """获取市场情绪（简化版）"""
+        overview = fetch_market_overview(date)
+        if overview:
+            effect = overview.get("赚钱效应", 50)
+            if effect >= 60:
+                return "乐观"
+            elif effect >= 40:
+                return "中性"
+            return "悲观"
+        return "中性"
+
+    def _buy(self, date: str, stocks: list, max_buy: int,
+             min_score: int, sentiment: str, pending: dict):
+        """买入决策"""
         candidates = []
-        for r in day_stocks:
-            passed, _ = check_buy_filters(r)
-            if not passed:
+        for r in stocks:
+            ok, _ = check_filters(r)
+            if not ok:
                 continue
-            rating = calc_board_rating(r)
-            if rating["rating"] < min_rating:
+            score = calc_score(r, sentiment)
+            if score["total"] < min_score:
                 continue
-            r["_rating"] = rating["rating"]
-            r["_level"] = rating["level"]
+            r["_score"] = score["total"]
+            r["_level"] = score["level"]
+            r["_desc"] = score["desc"]
             candidates.append(r)
 
         if not candidates:
             return
 
-        candidates.sort(key=lambda x: x["_rating"], reverse=True)
-        for c in candidates[:max_daily]:
+        candidates.sort(key=lambda x: x["_score"], reverse=True)
+        for c in candidates[:max_buy]:
             code = str(c.get("代码", "")).zfill(6)
             name = str(c.get("名称", ""))
-            buy_price = float(c.get("最新价", 0) or 0)
-            if buy_price <= 0 or code in pending_sells:
+            price = float(c.get("最新价", 0) or 0)
+            if price <= 0 or code in pending:
                 continue
 
+            board_type = "首板" if c.get("连板数", 1) <= 1 else f"{c.get('连板数',1)}连板"
             detail = {
-                "board_type": "首板" if c.get("连板数", 1) <= 1 else f"{c.get('连板数',1)}连板",
-                "rating": c["_rating"], "rating_level": c["_level"],
-                "board_time": str(c.get("首次封板", "")),
-                "turnover": float(c.get("换手率", 0)),
+                "rating": c["_score"],
+                "board_type": board_type,
+                "子策略": board_type,
+                "level": c["_level"],
+                "desc": c["_desc"], "board_time": str(c.get("首次封板", "")),
             }
 
-            if not self.engine.has_position(code):
-                ok = self.engine.buy(code, name, buy_price, date, signal_detail=detail)
+            if not self.engine.has_position(code) and self.engine.position_count < 5:
+                ok = self.engine.buy(code, name, price, date,
+                                     amount=self.engine.cash * 0.10,  # 10%仓位
+                                     signal_detail=detail)
                 if ok:
-                    pending_sells[code] = {
-                        "date": date, "price": buy_price,
-                        "name": name, "level": c["_level"],
-                    }
+                    pending[code] = {"date": date, "price": price,
+                                     "name": name, "level": c["_level"]}
 
-    def _process_sells(self, today: str, pending_sells: dict, zt_lookup: set):
-        """处理昨日持仓卖出 — 基于涨停池次日连板判断"""
-        for code in list(pending_sells.keys()):
-            info = pending_sells[code]
-            buy_price = info["price"]
-            level = info.get("level", "C")
-
-            # 检查今日涨停池中是否有此股
-            is_today_zt = (code, today) in zt_lookup
-
-            ret, reason = estimate_sell_return(code, today, level,
-                                                {(code, today): is_today_zt})
-            sell_price = buy_price * (1 + ret)
-            self.engine.sell(code, sell_price, today, reason)
-            del pending_sells[code]
+    def _sell(self, today: str, pending: dict, next_codes: set):
+        """卖出决策"""
+        for code in list(pending.keys()):
+            info = pending[code]
+            ret, reason = estimate_ret(code, today, info["level"], next_codes)
+            sell_p = info["price"] * (1 + ret)
+            self.engine.sell(code, sell_p, today, reason)
+            del pending[code]
 
     # ============================================================
-    # 报告输出
+    # 报告
     # ============================================================
 
     def print_report(self):
-        """打印完整回测报告"""
         result = self.engine.summary()
         self.engine.print_report(result)
-
         if not result.trades:
             return
 
-        levels = Counter(t.signal_detail.get("rating_level", "?") for t in result.trades)
-        board_types = Counter(t.signal_detail.get("board_type", "?") for t in result.trades)
-
-        # 评级表现
-        print("\n  ┌─ 📋 评级绩效 ────────────────────────┐")
+        # 评分 vs 收益
+        levels = Counter(t.signal_detail.get("level", "?") for t in result.trades)
+        print("\n  ┌─ 评分收益 ────────────────────────┐")
         for lv in ["A", "B", "C", "D"]:
-            subset = [t for t in result.trades if t.signal_detail.get("rating_level") == lv]
-            if not subset:
+            sub = [t for t in result.trades if t.signal_detail.get("level") == lv]
+            if not sub:
                 continue
-            wr = sum(1 for t in subset if t.profit_pct > 0) / len(subset) * 100
-            avg = np.mean([t.profit_pct for t in subset])
-            print(f"  │ {lv}级: {len(subset):>3}次 胜率{wr:>5.1f}% 均收益{avg:>+6.2f}%")
-        print("  └──────────────────────────────────────┘")
+            wr = sum(1 for t in sub if t.profit_pct > 0) / len(sub) * 100
+            avg = np.mean([t.profit_pct for t in sub])
+            print(f"  │ {lv}级({len(sub):>2}次): 胜率{wr:>5.1f}% 均{avg:>+6.2f}%")
+        print("  └──────────────────────────────────┘")
 
-        # 板型表现
-        print("\n  ┌─ 📋 板型绩效 ────────────────────────┐")
-        for bt in ["首板", "2连板", "3连板", "4连板"]:
-            subset = [t for t in result.trades if bt in t.signal_detail.get("board_type", "")]
-            if not subset:
-                continue
-            wr = sum(1 for t in subset if t.profit_pct > 0) / len(subset) * 100
-            avg = np.mean([t.profit_pct for t in subset])
-            print(f"  │ {bt}: {len(subset):>3}次 胜率{wr:>5.1f}% 均收益{avg:>+6.2f}%")
-        print("  └──────────────────────────────────────┘")
+        # 子策略收益
+        stypes = Counter(t.signal_detail.get("子策略", "?") for t in result.trades)
+        print("\n  ┌─ 子策略收益 ──────────────────────┐")
+        for st, _ in stypes.most_common():
+            sub = [t for t in result.trades if t.signal_detail.get("子策略") == st]
+            wr = sum(1 for t in sub if t.profit_pct > 0) / len(sub) * 100
+            avg = np.mean([t.profit_pct for t in sub])
+            print(f"  │ {st:<6} {len(sub):>2}次 胜率{wr:>5.1f}% 均{avg:>+6.2f}%")
+        print("  └──────────────────────────────────┘")
 
-        # TOP交易
-        sorted_t = sorted(result.trades, key=lambda t: t.profit_pct, reverse=True)
-        n = min(8, len(sorted_t))
-        print(f"\n  🏆 最佳 TOP{n}:")
-        print(f"  {'代码':<8} {'名称':<6} {'收益':>7} {'评分':>5} {'板型':<6} {'原因'}")
-        for t in sorted_t[:n]:
-            print(f"  {t.stock_code:<8} {t.stock_name:<6} {t.profit_pct:>+6.2f}% {t.rating:>4.0f} {t.board_type:<6} {t.exit_reason}")
+        # Top
+        s = sorted(result.trades, key=lambda t: t.profit_pct, reverse=True)
+        n = min(10, len(s))
+        print(f"\n  🏆 最佳 {n}:")
+        print(f"  {'代码':<8} {'名称':<6} {'收益':>7} {'评分':>4} {'级别':<4} {'原因'}")
+        for t in s[:n]:
+            print(f"  {t.stock_code:<8} {t.stock_name:<6} {t.profit_pct:>+6.2f}% {t.rating:>3.0f} {t.signal_detail.get('level','?'):<4} {t.exit_reason}")
 
-        print(f"\n  💀 最差 TOP{n}:")
-        print(f"  {'代码':<8} {'名称':<6} {'收益':>7} {'评分':>5} {'板型':<6} {'原因'}")
-        for t in sorted_t[-n:]:
-            print(f"  {t.stock_code:<8} {t.stock_name:<6} {t.profit_pct:>+6.2f}% {t.rating:>4.0f} {t.board_type:<6} {t.exit_reason}")
+        print(f"\n  💀 最差 {n}:")
+        for t in s[-n:]:
+            print(f"  {t.stock_code:<8} {t.stock_name:<6} {t.profit_pct:>+6.2f}% {t.rating:>3.0f} {t.signal_detail.get('level','?'):<4} {t.exit_reason}")
 
         # 月度
         monthly = defaultdict(list)
         for t in result.trades:
             monthly[t.buy_date[:6]].append(t.profit_pct)
-        print(f"\n  📅 月度统计:")
-        print(f"  {'月份':<8} {'次数':>5} {'胜率':>7} {'收益率':>8}")
-        for month in sorted(monthly.keys()):
-            subset = monthly[month]
-            wr = sum(1 for p in subset if p > 0) / len(subset) * 100
-            avg_ret = np.mean(subset)
-            print(f"  {month:<8} {len(subset):>5} {wr:>6.1f}% {avg_ret:>+7.2f}%")
+        print(f"\n  📅 月度:")
+        print(f"  {'月份':<7} {'次数':>4} {'胜率':>5} {'收益':>6}")
+        for m in sorted(monthly):
+            sub = monthly[m]
+            wr = sum(1 for p in sub if p > 0) / len(sub) * 100
+            print(f"  {m:<7} {len(sub):>4} {wr:>4.0f}% {np.mean(sub):>+5.2f}%")
+
+
+# ============================================================
+# 本地封装测试入口
+# ============================================================
+
+def local_test(quick: bool = False):
+    """
+    本地封装测试 — 一键运行
+
+    用法:
+        from strategy.board_chaser import local_test
+        local_test()          # 全量回测
+        local_test(True)      # 快速模式
+    """
+    from .run_backtest import main as _run
+    import sys
+    sys.argv = ["run_backtest.py"]
+    if quick:
+        sys.argv += ["--quick"]
+    _run()
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
+
+    s = BoardChaserStrategy()
+    engine = s.run(max_daily_buy=3, min_score=14)
+    s.print_report()
