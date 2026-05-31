@@ -27,7 +27,9 @@
       "PowerShell(echo \"HTTP_PROXY=$env:HTTP_PROXY\"; echo \"HTTPS_PROXY=$env:HTTPS_PROXY\"; echo \"http_proxy=$env:http_proxy\"; echo \"https_proxy=$env:https_proxy\"; echo \"NO_PROXY=$env:NO_PROXY\")",
       "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -c \"import sys; sys.path.insert\\(0, '.'\\); from strategy.data_fetcher import fetch_daily_data; codes = ['603459', '600172', '002585', '300959', '301439', '000001']; r = [\\(c, len\\(fetch_daily_data\\(c,'20260501','20260531'\\)\\)\\) for c in codes]; [print\\(f'{c}: {n} rows'\\) for c, n in r]\" 2>&1)",
       "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe strategy\\\\run_backtest.py --start 20260301 --end 20260529 --rating 55 --max-buy 3 --capital 1000000 2>&1)",
-      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe strategy\\\\run_backtest.py --score 14 --max-buy 3 2>&1)"
+      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe strategy\\\\run_backtest.py --score 14 --max-buy 3 2>&1)",
+      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -m strategy.run_backtest --quick --score 14 --max-buy 3 2>&1)",
+      "PowerShell(cd C:\\\\Users\\\\Administrator\\\\Desktop\\\\try; $env:PYTHONIOENCODING='utf-8'; .\\\\.venv\\\\Scripts\\\\python.exe -c \"from strategy.ui.main_window import BacktestMainWindow; print\\('UI模块导入成功 ✅'\\)\" 2>&1)"
     ]
   }
 }

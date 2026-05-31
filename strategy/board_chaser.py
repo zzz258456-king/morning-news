@@ -1,92 +1,55 @@
 """
-打板策略模块 v2.0
-基于开源量化研究成果重构，核心改进：
+打板策略 v3 — 基于真实日线数据的 T+1 回测
 
-多因子评分体系（参考聚宽五合一策略）：
-  涨停质量 0-5 | 技术形态 0-10 | 量能突破 0-5
-  主线题材 0-5 | 市场情绪 0-5 | 主力资金 0-10
-  → 满分40分，≥14分合格
-
-三种子策略：
-  1. 首板打板 — 首次涨停，博弈连板
-  2. 一进二 — 首板次日弱转强/强更强
-  3. 首板低吸 — 首板后低开-3%~-4%反核
-
-风控规则：
-  单票 ≤ 10%仓位，同时持仓 ≤ 5只
-  T+1尾盘未涨停强制平仓
-  剔除ST/科创板/退市/次新<60日
-
-数据来源：仅依赖涨停板API（不受代理限制）
+v3 核心改进：
+  ✅ 多因子评分 (40分制，参考聚宽五合一)
+  ✅ 真实日线数据 (baostock) 做卖出决策
+  ✅ 插件式架构 (继承 BaseStrategy)
+  ✅ 三种子模式：首板/一进二/低吸
+  ✅ 严格风控 (仓位/剔除/强制平仓)
 """
 import logging
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 import numpy as np
 import pandas as pd
 
 from config import BACKTEST_INITIAL_CAPITAL
+from .base import BaseStrategy, register_strategy
 from .backtest_engine import BacktestEngine
 from .data_fetcher import (
     fetch_zt_pool_range,
+    fetch_daily_data,
     fetch_market_overview,
+    get_trade_dates,
     tag_consecutive_boards,
 )
 
 logger = logging.getLogger(__name__)
 
+# 评分阈值
+PASS_SCORE = 14
+STRONG_SCORE = 25
+
+
 # ============================================================
-# 多因子评分系统 (满分40分，≥14合格)
-# 参考：聚宽五合一策略 + 通达信多因子模型
+# 多因子评分 (满分40分)
 # ============================================================
 
-_FACTOR_WEIGHTS = {
-    "涨停质量": 5,
-    "技术形态": 10,
-    "量能突破": 5,
-    "主线题材": 5,
-    "市场情绪": 5,
-    "主力资金": 10,
-}
-
-_PASS_SCORE = 14   # 合格线
-_STRONG_SCORE = 25 # 强势线
-
-# 连板成功率统计（基于历史数据）
-_BOARD_CONTINUE_RATE = {
-    "A": 0.55,  # A级 55%概率连板
-    "B": 0.35,
-    "C": 0.18,
-    "D": 0.05,
-}
-
-# 断板次日平均收益（基于评分分级）
-_FAIL_RETURN = {
-    "A": 0.012,   # A级断板 +1.2%
-    "B": 0.003,   # B级断板 +0.3%
-    "C": -0.008,  # C级断板 -0.8%
-    "D": -0.020,  # D级断板 -2.0%
-}
-
-
-def calc_score(row: dict, market_sentiment: str = "中性") -> dict:
+def calc_score(row: dict, sentiment: str = "中性") -> dict:
     """
-    多因子量化评分 (满分40分)
-
-    Args:
-        row: 涨停板行数据
-        market_sentiment: 市场情绪
-
-    Returns:
-        {"total":总分, "level":A/B/C/D, "detail":{各因子分}, "desc":描述}
+    6因子评分：
+      涨停质量(5) + 技术形态(10) + 量能突破(5)
+      + 主线题材(5) + 市场情绪(5) + 主力资金(10) = 40
     """
     scores = {}
     reasons = []
+
     time_str = str(row.get("首次封板", "") or row.get("最后封板", "15:00:00"))
     try:
-        t = datetime.strptime(time_str.strip(), "%H:%M:%S")
+        t = datetime.strptime(time_str.strip()[:8], "%H:%M:%S")
         minute = t.hour * 60 + t.minute
     except Exception:
         minute = 900
@@ -97,88 +60,66 @@ def calc_score(row: dict, market_sentiment: str = "中性") -> dict:
     cap = float(row.get("流通市值", 0) or 0) / 1e8
     bc = int(row.get("连板数", 1) or 1)
 
-    # 1️⃣ 涨停质量 (5分) — 首封时间越早分越高
-    if minute <= 570:        q = 5;  reasons.append("早盘板+5")
-    elif minute <= 600:      q = 4;  reasons.append("9:40前+4")
-    elif minute <= 630:      q = 3;  reasons.append("10:30前+3")
-    elif minute <= 690:      q = 2;  reasons.append("午前+2")
-    elif minute <= 780:      q = 1;  reasons.append("午后+1")
-    else:                    q = 0;  reasons.append("尾盘+0")
+    # 1. 涨停质量 (0-5)
+    if minute <= 570:
+        q = 5; reasons.append("早盘板+5")
+    elif minute <= 600:
+        q = 4; reasons.append("9:40前+4")
+    elif minute <= 630:
+        q = 3; reasons.append("10:30前+3")
+    elif minute <= 690:
+        q = 2; reasons.append("午前+2")
+    elif minute <= 780:
+        q = 1; reasons.append("午后+1")
+    else:
+        q = 0; reasons.append("尾盘+0")
     scores["涨停质量"] = q
 
-    # 2️⃣ 技术形态 (10分) — 连板>首板>高位, 封成比>换手率>市值
+    # 2. 技术形态 (0-10)
     sr = seal / max(turn, 1)
-    # 封成比 0-4分
-    sr_s = 4 if sr >= 0.3 else 3 if sr >= 0.15 else 2 if sr >= 0.08 else 1 if sr >= 0.04 else 0
-    # 换手率 0-3分
+    sr_s = min(int(sr / 0.05), 4)
     tr_s = 3 if 5 <= tr <= 10 else 2 if 3 <= tr < 5 or 10 < tr <= 15 else 1 if 1 <= tr < 3 or 15 < tr <= 20 else 0
-    # 市值 0-3分 (20-100亿最佳)
-    cap_s = 3 if 20 <= cap <= 100 else 2 if 10 <= cap < 20 or 100 < cap <= 200 else 1 if cap < 10 or 200 < cap <= 500 else 0
-    tech_score = sr_s + tr_s + cap_s
+    cap_s = 3 if 20 <= cap <= 100 else 2 if 10 <= cap < 20 or 100 < cap <= 200 else 1 if cap <= 10 or 200 < cap <= 500 else 0
+    tech = sr_s + tr_s + cap_s
     reasons.append(f"封成比{sr:.2f}+{sr_s}")
     reasons.append(f"换手{tr:.1f}+{tr_s}")
     reasons.append(f"市值{cap:.0f}亿+{cap_s}")
-    scores["技术形态"] = tech_score
+    scores["技术形态"] = tech
 
-    # 3️⃣ 量能突破 (5分) — 用封单资金替代无量比
+    # 3. 量能突破 (0-5)
     sa = float(row.get("封单额", 0) or 0)
-    v_s = 5 if sa >= 3e8 else 4 if sa >= 2e8 else 3 if sa >= 1e8 else 2 if sa >= 5e7 else 1 if sa >= 2e7 else 0
-    reasons.append(f"封单{sa/1e8:.1f}亿+{v_s}")
-    scores["量能突破"] = v_s
+    vs = 5 if sa >= 3e8 else 4 if sa >= 2e8 else 3 if sa >= 1e8 else 2 if sa >= 5e7 else 1 if sa >= 2e7 else 0
+    reasons.append(f"封单{sa/1e8:.1f}亿+{vs}")
+    scores["量能突破"] = vs
 
-    # 4️⃣ 主线题材 (5分) — 行业 + 连板加分
+    # 4. 主线题材 (0-5)
     ind = str(row.get("所属行业", ""))
-    ind_bonus = 0
-    hot_industries = ["计算机", "电子", "通信", "电力设备", "机械设备", "汽车",
-                      "医药生物", "国防军工", "传媒", "非银金融"]
-    for h in hot_industries:
-        if h in ind:
-            ind_bonus = 2
-            break
-    # 连板加分 (首板0, 2板+1, 3板+2, 4板+3)
+    hot = ["计算机", "电子", "通信", "电力设备", "机械设备", "汽车", "医药", "军工", "传媒"]
+    ind_bonus = 2 if any(h in ind for h in hot) else 0
     board_bonus = min(bc - 1, 3) if bc > 1 else 0
-    theme_score = min(ind_bonus + board_bonus, 5)
-    if bc > 1:
-        reasons.append(f"{bc}连板+{board_bonus}")
-    if ind_bonus:
-        reasons.append(f"{ind}+{ind_bonus}")
-    scores["主线题材"] = theme_score
+    theme = min(ind_bonus + board_bonus, 5)
+    if bc > 1: reasons.append(f"{bc}连板+{board_bonus}")
+    if ind_bonus: reasons.append(f"{ind}+{ind_bonus}")
+    scores["主线题材"] = theme
 
-    # 5️⃣ 市场情绪 (5分)
-    if "乐观" in market_sentiment:
-        m_s = 5
-    elif market_sentiment == "中性":
-        m_s = 3
-    else:
-        m_s = 1
-    scores["市场情绪"] = m_s
+    # 5. 市场情绪 (0-5)
+    scores["市场情绪"] = 5 if "乐观" in sentiment else 3 if sentiment == "中性" else 1
 
-    # 6️⃣ 主力资金 (10分)
-    # 用封单金额+成交额综合判断资金强度
-    fund_score = min(int(sa / max(turn, 1) * 10), 10)
-    if fund_score < 1 and sa > 0:
-        fund_score = 1
-    scores["主力资金"] = fund_score
+    # 6. 主力资金 (0-10)
+    fund = min(int(sa / max(turn, 1) * 10), 10)
+    scores["主力资金"] = max(fund, 1) if sa > 0 else 0
 
     total = sum(scores.values())
-    level = "A" if total >= _STRONG_SCORE else "B" if total >= _PASS_SCORE else "C" if total >= 8 else "D"
-
+    level = "A" if total >= STRONG_SCORE else "B" if total >= PASS_SCORE else "C" if total >= 6 else "D"
     return {
-        "total": total,
-        "level": level,
-        "scores": scores,
-        "desc": "、".join(reasons),
-        "seal_ratio": round(sr, 3),
+        "total": total, "level": level, "scores": scores,
+        "desc": "、".join(reasons), "seal_ratio": round(sr, 3),
         "board_count": bc,
     }
 
 
-# ============================================================
-# 买入过滤
-# ============================================================
-
 def check_filters(row: dict) -> tuple[bool, str]:
-    """买入前置过滤"""
+    """买入过滤"""
     name = str(row.get("名称", ""))
     if name.startswith("ST") or name.startswith("*") or name.startswith("N"):
         return False, "ST/新股"
@@ -189,73 +130,126 @@ def check_filters(row: dict) -> tuple[bool, str]:
     if tr < 1 or tr > 30:
         return False, f"换手{tr:.1f}%异常"
     cap = float(row.get("流通市值", 0) or 0) / 1e8
-    if cap < 5 or cap > 500:
-        return False, f"市值{cap:.0f}亿超限"
+    if cap < 5 or cap > 300:
+        return False, f"市值{cap:.0f}亿"
     zh = int(row.get("炸板次数", 0) or 0)
     if zh >= 3:
         return False, f"炸板{zh}次"
     seal = float(row.get("封单额", 0) or 0)
     turn = float(row.get("成交额", 1) or 1)
     if turn > 0 and seal / turn < 0.02:
-        return False, f"封成比{seal/turn:.3f}过低"
+        return False, f"封成比{seal/turn:.3f}"
     return True, ""
 
 
 # ============================================================
-# 次日卖出决策模型（基于涨停池数据）
+# 次日卖出决策（基于真实日线数据）
 # ============================================================
 
-def estimate_ret(code: str, today: str, rating_level: str,
-                next_zt_set: set) -> tuple[float, str]:
+def decide_sell_by_daily(daily: pd.DataFrame, buy_date: str, buy_price: float
+                         ) -> tuple[float, str]:
     """
-    估算次日卖出收益率
+    基于次日真实日线数据决定卖出价格
 
-    决策树（真实数据驱动）：
-    1️⃣ 次日再次涨停 → +10%连板收益
-    2️⃣ 次日未涨停且评分A/B → 期望+0.3%~1.2%
-    3️⃣ 次日未涨停且评分C/D → 期望-0.8%~-2.0%
-    4️⃣ 交易结束强制平仓 → -5%
+    1. 找到买入日之后第一个交易日的数据
+    2. 根据次日开盘/最高/最低/收盘做决策
     """
-    # 若次日仍在涨停池 → 连板成功
-    if (code, today) in next_zt_set:
-        return 0.10, "连板成功+10%"
+    if daily.empty or "日期" not in daily.columns:
+        return buy_price * 1.01, "无数据"
 
-    # 断板：按评分级别期望值
-    ret = _FAIL_RETURN.get(rating_level, -0.008)
-    # 加微小偏移区分个股（确定性，不用随机数）
-    offset = (int(code[-4:]) % 20 - 10) * 0.001
-    ret += offset
-    ret = max(min(ret, 0.03), -0.03)
-    return ret, f"断板{rating_level}级({ret*100:+.1f}%)"
+    dates = daily["日期"].tolist()
+    try:
+        buy_idx = dates.index(buy_date)
+    except ValueError:
+        return buy_price * 1.01, "买入日未找到"
+
+    if buy_idx >= len(dates) - 1:
+        return buy_price * 1.01, "无次日数据"
+
+    nxt = daily.iloc[buy_idx + 1]
+    try:
+        o, h, l, c = [float(nxt[k]) for k in ["开盘", "最高", "最低", "收盘"]]
+    except Exception:
+        return buy_price * 1.01, "数据异常"
+
+    chg_o = o / buy_price - 1
+    chg_h = h / buy_price - 1
+    chg_l = l / buy_price - 1
+    chg_c = c / buy_price - 1
+
+    # 卖出规则树
+    if chg_o <= -0.03:
+        return o, f"低开{chg_o*100:.1f}%"
+    if chg_h >= 0.095:
+        return buy_price * 1.095, "涨停封板+9.5%"
+    if chg_h >= 0.05:
+        return buy_price * 1.045, f"冲高{chg_h*100:.0f}%"
+    if chg_o >= 0.02:
+        if chg_c >= 0.02:
+            return c, f"高开收阳{chg_c*100:.1f}%"
+        return o * 0.99, "高开低走"
+    if chg_o >= 0:
+        if chg_h >= 0.02:
+            return buy_price * 1.015, f"冲高{chg_h*100:.0f}"
+        return c if chg_c > 0 else o * 0.99, "平盘"
+    if chg_o > -0.03:
+        if chg_h >= 0.015:
+            return buy_price * 1.005, "低开回升"
+        return o, "低开弱"
+    return c, f"低开收{chg_c*100:.1f}%"
 
 
 # ============================================================
-# 主策略
+# 策略主类
 # ============================================================
 
-class BoardChaserStrategy:
-    """打板策略 v2 — 评分驱动 + 三种子策略 + 风控"""
+@register_strategy
+class BoardChaserStrategy(BaseStrategy):
+    """打板策略 v3 — 多因子评分 + 真实日线 + T+1"""
 
-    def __init__(self, initial_capital: float = BACKTEST_INITIAL_CAPITAL):
-        self.engine = BacktestEngine(initial_capital=initial_capital)
+    @property
+    def name(self):
+        return "打板策略"
 
-    def run(self, start_date: str = "20260511", end_date: str = "20260529",
-            max_daily_buy: int = 3, min_score: int = _PASS_SCORE) -> BacktestEngine:
+    @property
+    def description(self):
+        return "多因子评分(40分制) + T+1真实日线回测"
+
+    def get_params_desc(self):
+        return [
+            {"key": "min_score", "label": "最低评分", "type": "int", "default": 14, "min": 6, "max": 30},
+            {"key": "max_daily_buy", "label": "每日买入", "type": "int", "default": 3, "min": 1, "max": 10},
+            {"key": "single_pct", "label": "单票仓位%", "type": "float", "default": 0.10, "min": 0.05, "max": 0.30},
+        ]
+
+    def run(self, start_date: str = "", end_date: str = "",
+            min_score: int = PASS_SCORE, max_daily_buy: int = 3,
+            single_pct: float = 0.10, **kwargs) -> BacktestEngine:
         """
-        运行回测
+        运行打板回测
 
         Args:
-            start_date: 起始日
-            end_date: 结束日
+            start_date: YYYYMMDD，默认取涨停池最早可用日
+            end_date: YYYYMMDD，默认今天
+            min_score: 最低评分
             max_daily_buy: 每日最多买入
-            min_score: 最低评分门槛 (默认14)
+            single_pct: 单票仓位
         """
-        logger.info(f"🚀 打板策略回测 v2: {start_date} → {end_date}")
+        # 日期默认值
+        if not end_date:
+            end_date = datetime.now().strftime("%Y%m%d")
+        if not start_date:
+            import akshare as ak
+            # 涨停池保留约20天，取30天前足够
+            from datetime import timedelta
+            start_date = (datetime.now() - timedelta(days=45)).strftime("%Y%m%d")
 
-        # 1. 获取涨停数据
+        logger.info(f"🚀 {self.name} v3: {start_date} → {end_date}")
+
+        # ----- 获取涨停数据 -----
         zt_df = fetch_zt_pool_range(start_date, end_date)
         if zt_df.empty:
-            logger.error("无数据终止")
+            logger.error("无数据")
             return self.engine
         zt_df["日期"] = zt_df["日期"].astype(str)
         zt_df = tag_consecutive_boards(zt_df)
@@ -263,87 +257,66 @@ class BoardChaserStrategy:
         dates = sorted(zt_df["日期"].unique())
         logger.info(f"交易日: {len(dates)}")
 
-        # 2. 构建日期索引 + 涨停池集合
+        # ----- 构建索引 -----
         date_stocks = defaultdict(list)
-        zt_set_all = set()
         for _, r in zt_df.iterrows():
-            d = r["日期"]
-            date_stocks[d].append(r.to_dict())
-            zt_set_all.add((str(r["代码"]).zfill(6), d))
+            date_stocks[r["日期"]].append(r.to_dict())
 
-        # 3. 构建次日涨停池索引 {code: True} — 用于卖出决策
-        # 对每个交易日，预计算次日哪些股票还在涨停池
-        next_day_zt = {}
-        for i in range(len(dates) - 1):
-            today = dates[i]
-            tomorrow = dates[i + 1]
-            # 收集今天买入，明天还在池中的股票
-            tomorrow_codes = set()
-            for r in date_stocks.get(tomorrow, []):
-                tomorrow_codes.add(str(r["代码"]).zfill(6))
-            next_day_zt[today] = tomorrow_codes
-
-        # 4. 逐日回测
-        pending = {}
+        # ----- 逐日回测 -----
+        pending = {}  # {code: {date, price, name, level}}
+        daily_cache = {}  # {code: DataFrame}
 
         for idx, date in enumerate(dates):
-            # 先卖
+            # 卖
             if pending:
-                self._sell(date, pending, next_day_zt.get(date, set()))
+                self._sell(date, pending, daily_cache)
 
-            # 再买
+            # 买
             stocks = date_stocks.get(date, [])
-            # 获取当日市场情绪
             sentiment = self._get_sentiment(date)
-            self._buy(date, stocks, max_daily_buy, min_score, sentiment, pending)
+            self._buy(date, stocks, max_daily_buy, min_score,
+                      sentiment, single_pct, pending)
 
             self.engine.daily_close(date, {})
 
             if (idx + 1) % 20 == 0:
                 logger.info(f"进度: {idx+1}/{len(dates)}  {len(self.engine.trades)}笔")
 
-        # 强制平仓
+        # 平仓
         if pending:
             for code in list(pending.keys()):
                 info = pending[code]
                 self.engine.sell(code, info["price"] * 0.95, dates[-1], "平仓")
             pending.clear()
 
+        self._result = self.engine.summary()
         logger.info(f"✅ 完成! 交易{len(self.engine.trades)}笔")
         return self.engine
 
     def _get_sentiment(self, date: str) -> str:
-        """获取市场情绪（简化版）"""
-        overview = fetch_market_overview(date)
-        if overview:
-            effect = overview.get("赚钱效应", 50)
-            if effect >= 60:
-                return "乐观"
-            elif effect >= 40:
-                return "中性"
-            return "悲观"
+        ov = fetch_market_overview(date)
+        if ov:
+            e = ov.get("赚钱效应", 50)
+            return "乐观" if e >= 60 else "悲观" if e <= 30 else "中性"
         return "中性"
 
-    def _buy(self, date: str, stocks: list, max_buy: int,
-             min_score: int, sentiment: str, pending: dict):
-        """买入决策"""
+    def _buy(self, date, stocks, max_buy, min_score, sentiment, single_pct, pending):
         candidates = []
         for r in stocks:
             ok, _ = check_filters(r)
             if not ok:
                 continue
-            score = calc_score(r, sentiment)
-            if score["total"] < min_score:
+            sc = calc_score(r, sentiment)
+            if sc["total"] < min_score:
                 continue
-            r["_score"] = score["total"]
-            r["_level"] = score["level"]
-            r["_desc"] = score["desc"]
+            r["_sc"] = sc["total"]
+            r["_lv"] = sc["level"]
+            r["_desc"] = sc["desc"]
             candidates.append(r)
 
         if not candidates:
             return
-
-        candidates.sort(key=lambda x: x["_score"], reverse=True)
+        candidates.sort(key=lambda x: x["_sc"], reverse=True)
         for c in candidates[:max_buy]:
             code = str(c.get("代码", "")).zfill(6)
             name = str(c.get("名称", ""))
@@ -351,30 +324,34 @@ class BoardChaserStrategy:
             if price <= 0 or code in pending:
                 continue
 
-            board_type = "首板" if c.get("连板数", 1) <= 1 else f"{c.get('连板数',1)}连板"
-            detail = {
-                "rating": c["_score"],
-                "board_type": board_type,
-                "子策略": board_type,
-                "level": c["_level"],
-                "desc": c["_desc"], "board_time": str(c.get("首次封板", "")),
-            }
+            bt = "首板" if c.get("连板数", 1) <= 1 else f"{c.get('连板数',1)}连板"
+            detail = {"rating": c["_sc"], "board_type": bt,
+                      "level": c["_lv"], "desc": c["_desc"]}
 
             if not self.engine.has_position(code) and self.engine.position_count < 5:
                 ok = self.engine.buy(code, name, price, date,
-                                     amount=self.engine.cash * 0.10,  # 10%仓位
+                                     amount=self.engine.cash * single_pct,
                                      signal_detail=detail)
                 if ok:
                     pending[code] = {"date": date, "price": price,
-                                     "name": name, "level": c["_level"]}
+                                     "name": name, "level": c["_lv"]}
 
-    def _sell(self, today: str, pending: dict, next_codes: set):
-        """卖出决策"""
+    def _sell(self, today, pending, daily_cache):
+        """真正的T+1卖出 — 基于baostock次日日线数据"""
         for code in list(pending.keys()):
             info = pending[code]
-            ret, reason = estimate_ret(code, today, info["level"], next_codes)
-            sell_p = info["price"] * (1 + ret)
-            self.engine.sell(code, sell_p, today, reason)
+            buy_price = info["price"]
+            buy_date = info["date"]
+
+            # 获取日线（带缓存）
+            if code not in daily_cache or daily_cache[code].empty:
+                df = fetch_daily_data(code)
+                daily_cache[code] = df
+            else:
+                df = daily_cache[code]
+
+            sell_price, reason = decide_sell_by_daily(df, buy_date, buy_price)
+            self.engine.sell(code, sell_price, today, reason)
             del pending[code]
 
     # ============================================================
@@ -387,41 +364,35 @@ class BoardChaserStrategy:
         if not result.trades:
             return
 
-        # 评分 vs 收益
         levels = Counter(t.signal_detail.get("level", "?") for t in result.trades)
         print("\n  ┌─ 评分收益 ────────────────────────┐")
         for lv in ["A", "B", "C", "D"]:
             sub = [t for t in result.trades if t.signal_detail.get("level") == lv]
-            if not sub:
-                continue
+            if not sub: continue
             wr = sum(1 for t in sub if t.profit_pct > 0) / len(sub) * 100
             avg = np.mean([t.profit_pct for t in sub])
             print(f"  │ {lv}级({len(sub):>2}次): 胜率{wr:>5.1f}% 均{avg:>+6.2f}%")
         print("  └──────────────────────────────────┘")
 
-        # 子策略收益
-        stypes = Counter(t.signal_detail.get("子策略", "?") for t in result.trades)
+        stypes = Counter(t.signal_detail.get("board_type", "?") for t in result.trades)
         print("\n  ┌─ 子策略收益 ──────────────────────┐")
         for st, _ in stypes.most_common():
-            sub = [t for t in result.trades if t.signal_detail.get("子策略") == st]
+            sub = [t for t in result.trades if t.signal_detail.get("board_type") == st]
             wr = sum(1 for t in sub if t.profit_pct > 0) / len(sub) * 100
             avg = np.mean([t.profit_pct for t in sub])
             print(f"  │ {st:<6} {len(sub):>2}次 胜率{wr:>5.1f}% 均{avg:>+6.2f}%")
         print("  └──────────────────────────────────┘")
 
-        # Top
         s = sorted(result.trades, key=lambda t: t.profit_pct, reverse=True)
         n = min(10, len(s))
         print(f"\n  🏆 最佳 {n}:")
         print(f"  {'代码':<8} {'名称':<6} {'收益':>7} {'评分':>4} {'级别':<4} {'原因'}")
         for t in s[:n]:
             print(f"  {t.stock_code:<8} {t.stock_name:<6} {t.profit_pct:>+6.2f}% {t.rating:>3.0f} {t.signal_detail.get('level','?'):<4} {t.exit_reason}")
-
         print(f"\n  💀 最差 {n}:")
         for t in s[-n:]:
             print(f"  {t.stock_code:<8} {t.stock_name:<6} {t.profit_pct:>+6.2f}% {t.rating:>3.0f} {t.signal_detail.get('level','?'):<4} {t.exit_reason}")
 
-        # 月度
         monthly = defaultdict(list)
         for t in result.trades:
             monthly[t.buy_date[:6]].append(t.profit_pct)
@@ -433,32 +404,12 @@ class BoardChaserStrategy:
             print(f"  {m:<7} {len(sub):>4} {wr:>4.0f}% {np.mean(sub):>+5.2f}%")
 
 
-# ============================================================
-# 本地封装测试入口
-# ============================================================
-
-def local_test(quick: bool = False):
-    """
-    本地封装测试 — 一键运行
-
-    用法:
-        from strategy.board_chaser import local_test
-        local_test()          # 全量回测
-        local_test(True)      # 快速模式
-    """
-    from .run_backtest import main as _run
-    import sys
-    sys.argv = ["run_backtest.py"]
-    if quick:
-        sys.argv += ["--quick"]
-    _run()
-
-
+# 快速测试入口
 if __name__ == "__main__":
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
     s = BoardChaserStrategy()
-    engine = s.run(max_daily_buy=3, min_score=14)
+    engine = s.run(min_score=14, max_daily_buy=3)
     s.print_report()
