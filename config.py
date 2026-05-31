@@ -43,3 +43,28 @@ DEFAULT_CHART_FIGSIZE = (10, 6)
 # 日志配置
 LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+# ========== 回测系统配置 ==========
+
+# 回测基础参数
+BACKTEST_INITIAL_CAPITAL = 1_000_000  # 初始资金 100万
+BACKTEST_COMMISSION = 0.0003          # 佣金 0.03%
+BACKTEST_SLIPPAGE = 0.001            # 滑点 0.1%
+
+# 打板策略参数
+BOARD_BUY_TIMEOUT = "10:00"          # 早盘涨停截止时间
+BOARD_MIN_SEAL_RATIO = 0.05          # 最小封单额/成交额比（实际市场通常0.05-0.5）
+BOARD_MIN_VOLUME_RATIO = 0.1         # 最小封单额(亿)，低于此不买
+BOARD_TURNOVER_MIN = 3.0             # 最小换手率 %
+BOARD_TURNOVER_MAX = 25.0            # 最大换手率 %
+BOARD_MARKET_CAP_MIN = 20            # 最小流通市值 (亿)
+BOARD_MARKET_CAP_MAX = 300           # 最大流通市值 (亿)
+
+# 卖出参数（T+1）
+SELL_PROFIT_TARGET = 0.05            # 止盈 +5%
+SELL_STOP_LOSS = -0.03               # 止损 -3%
+SELL_TRAILING_STOP = 0.02            # 回落止盈 2%
+
+# 回测时间
+BACKTEST_START_DATE = "20260301"     # 回测开始日期
+BACKTEST_END_DATE = "20260529"       # 回测结束日期

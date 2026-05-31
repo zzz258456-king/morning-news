@@ -25,7 +25,12 @@ scipy==1.15.2
 PyQt6==6.8.1
 pyqtgraph==0.13.7
 
-# ========== 新闻晨报系统（DeepSeek AI 分析） ==========
+# ========== 回测系统 ==========
+akshare>=1.14.0
+pandas>=2.0.0
+numpy>=1.24.0
+openpyxl>=3.1.0
+tabulate>=0.9.0
 feedparser==6.0.11
 openai>=1.0.0
 PyYAML==6.0.3
