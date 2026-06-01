@@ -4,14 +4,19 @@
 支持 DeepSeek API（兼容 OpenAI 接口格式）
 """
 import os
+import sys
 import yaml
 from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
-# 模块根目录
-_MODULE_DIR = Path(__file__).parent.resolve()
-PROJECT_DIR = _MODULE_DIR.parent  # 项目根目录
+# 模块根目录（兼容 PyInstaller 打包）
+if getattr(sys, 'frozen', False):
+    _MODULE_DIR = Path(sys._MEIPASS) / "morning"
+    PROJECT_DIR = Path(sys.executable).parent
+else:
+    _MODULE_DIR = Path(__file__).parent.resolve()
+    PROJECT_DIR = _MODULE_DIR.parent  # 项目根目录
 
 
 def _load_yaml() -> dict:

@@ -91,14 +91,16 @@ class StrategyFactory:
     @classmethod
     def register(cls, strategy_class: type):
         """注册策略类"""
-        name = strategy_class.name if isinstance(strategy_class.name, str) else strategy_class.__name__
-        # 实例化获取名称
+        if strategy_class is None:
+            return None
+        # 尝试实例化获取名称
         try:
             inst = strategy_class()
             name = inst.name
         except Exception:
-            name = strategy_class.__name__.replace("Strategy", "")
-        cls._strategies[name] = strategy_class
+            name = getattr(strategy_class, '__name__', '未知').replace("Strategy", "")
+        if name not in cls._strategies:
+            cls._strategies[name] = strategy_class
         return strategy_class
 
     @classmethod

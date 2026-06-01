@@ -2,10 +2,14 @@
 全局配置文件
 """
 import os
+import sys
 from pathlib import Path
 
-# 项目根目录
-BASE_DIR = Path(__file__).parent.resolve()
+# 项目根目录（兼容 PyInstaller 打包）
+if getattr(sys, 'frozen', False):
+    BASE_DIR = Path(sys.executable).parent.resolve()
+else:
+    BASE_DIR = Path(__file__).parent.resolve()
 
 # 数据目录
 DATA_DIR = BASE_DIR / "data"
@@ -68,3 +72,22 @@ SELL_TRAILING_STOP = 0.02            # 回落止盈 2%
 # 回测时间
 BACKTEST_START_DATE = "20260301"     # 回测开始日期
 BACKTEST_END_DATE = "20260529"       # 回测结束日期
+
+# ========== 风险预警配置 ==========
+
+# 涨跌家数阈值
+RISK_AD_WARN = 30.0          # 涨跌比% 预警线
+RISK_AD_DANGER = 20.0        # 涨跌比% 危险线
+
+# 北向资金阈值
+RISK_NORTH_WARN = -20.0      # 北向净流入(亿) 预警线
+RISK_NORTH_DANGER = -50.0    # 北向净流入(亿) 危险线
+
+# 指数偏离阈值
+RISK_INDEX_DEV_WARN = 5.0    # 指数偏离% 预警
+RISK_INDEX_DEV_DANGER = 8.0  # 指数偏离% 危险
+
+# 风险评分对应的仓位限制
+RISK_LOW_POSITION = 1.0      # 低风险 → 满仓
+RISK_MED_POSITION = 0.7      # 中风险 → 7成仓
+RISK_HIGH_POSITION = 0.3     # 高风险 → 3成仓

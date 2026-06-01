@@ -29,7 +29,10 @@ matplotlib.rcParams['axes.unicode_minus'] = False
 
 from config import LOG_LEVEL, LOG_FORMAT
 from strategy.base import StrategyFactory, BaseStrategy
-from strategy.board_chaser import BoardChaserStrategy
+
+# 导入策略模块触发 @register_strategy 装饰器
+import strategy.board_chaser  # noqa: F401
+import strategy.trend_follower  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -175,9 +178,6 @@ class BacktestMainWindow(QMainWindow):
         self.trades = []
         self.worker = None
 
-        # 注册策略
-        StrategyFactory.register(BoardChaserStrategy)
-
         self._init_ui()
         self._apply_theme()
 
@@ -220,32 +220,37 @@ class BacktestMainWindow(QMainWindow):
         self.cmb_strategy = QComboBox()
         self.cmb_strategy.addItems(StrategyFactory.list_strategies())
         self.cmb_strategy.setStyleSheet(self._input_style())
+        self.cmb_strategy.currentTextChanged.connect(self._on_strategy_changed)
         cfg_layout.addWidget(self.cmb_strategy)
 
-        # 评分门槛
-        cfg_layout.addWidget(QLabel("最低评分 (14/40)"))
+        # 评分门槛（动态标签）
+        self.lbl_score = QLabel("最低评分")
+        cfg_layout.addWidget(self.lbl_score)
         self.spin_score = QSpinBox()
         self.spin_score.setRange(6, 35)
         self.spin_score.setValue(14)
         self.spin_score.setStyleSheet(self._input_style())
         cfg_layout.addWidget(self.spin_score)
 
-        # 每日买入
-        cfg_layout.addWidget(QLabel("每日买入上限"))
+        # 每日买入/最大持仓（动态标签）
+        self.lbl_max_buy = QLabel("每日买入上限")
+        cfg_layout.addWidget(self.lbl_max_buy)
         self.spin_max_buy = QSpinBox()
-        self.spin_max_buy.setRange(1, 10)
+        self.spin_max_buy.setRange(1, 20)
         self.spin_max_buy.setValue(3)
         self.spin_max_buy.setStyleSheet(self._input_style())
         cfg_layout.addWidget(self.spin_max_buy)
 
-        # 仓位比例
-        cfg_layout.addWidget(QLabel("单票仓位%"))
+        # 仓位比例（打板策略专用）
+        self.lbl_pos = QLabel("单票仓位%")
         self.spin_pos = QDoubleSpinBox()
         self.spin_pos.setRange(5, 30)
         self.spin_pos.setValue(10)
         self.spin_pos.setSuffix("%")
         self.spin_pos.setStyleSheet(self._input_style())
         cfg_layout.addWidget(self.spin_pos)
+        # 趋势策略不需要这个参数，隐藏
+        self._pos_widgets = [self.lbl_pos, self.spin_pos]
 
         # 初始资金
         cfg_layout.addWidget(QLabel("初始资金"))
@@ -289,6 +294,20 @@ class BacktestMainWindow(QMainWindow):
         self.btn_export.clicked.connect(self.export_csv)
         self.btn_export.setEnabled(False)
         left_layout.addWidget(self.btn_export)
+
+        # 风险分析按钮
+        self.btn_risk = QPushButton("  Risk  风险分析")
+        self.btn_risk.setMinimumHeight(36)
+        self.btn_risk.setStyleSheet(f"""
+            QPushButton {{
+                background: {THEME['card']}; color: {THEME['yellow']};
+                border: 1px solid {THEME['yellow']}; border-radius: 8px;
+                font-size: 13px;
+            }}
+            QPushButton:hover {{ background: {THEME['card_hover']}; border-color: {THEME['red']}; }}
+        """)
+        self.btn_risk.clicked.connect(self.run_risk_analysis)
+        left_layout.addWidget(self.btn_risk)
 
         left_layout.addStretch()
 
@@ -354,6 +373,11 @@ class BacktestMainWindow(QMainWindow):
         self.tab_analysis = QWidget()
         self._init_analysis_tab()
         self.tabs.addTab(self.tab_analysis, "📊 评级分析")
+
+        # Tab 5: 风险预警
+        self.tab_risk = QWidget()
+        self._init_risk_tab()
+        self.tabs.addTab(self.tab_risk, "🛡️ 风险预警")
 
         right_layout.addWidget(self.tabs)
 
@@ -502,6 +526,54 @@ class BacktestMainWindow(QMainWindow):
         self.analysis_text.setText("运行回测后展示评级分析和月度统计")
         layout.addWidget(self.analysis_text)
 
+    def _init_risk_tab(self):
+        """初始化风险预警面板"""
+        layout = QVBoxLayout(self.tab_risk)
+        layout.setContentsMargins(16, 12, 16, 12)
+
+        # 刷新按钮
+        self.btn_refresh_risk = QPushButton("  刷新风险分析")
+        self.btn_refresh_risk.setMinimumHeight(36)
+        self.btn_refresh_risk.setStyleSheet(f"""
+            QPushButton {{
+                background: {THEME['accent2']}; color: white;
+                border: none; border-radius: 8px; font-size: 14px;
+            }}
+            QPushButton:hover {{ background: #40a9ff; }}
+        """)
+        self.btn_refresh_risk.clicked.connect(self.run_risk_analysis)
+        layout.addWidget(self.btn_refresh_risk)
+
+        # 风险结果显示
+        self.risk_text = QTextEdit()
+        self.risk_text.setReadOnly(True)
+        self.risk_text.setStyleSheet(f"""
+            QTextEdit {{
+                background: {THEME['bg']}; color: {THEME['text']};
+                border: 1px solid {THEME['border']}; border-radius: 6px;
+                padding: 12px; font-size: 13px;
+            }}
+        """)
+        self.risk_text.setText("点击「刷新风险分析」获取当前市场风险状态")
+        layout.addWidget(self.risk_text)
+
+    def _on_strategy_changed(self, name: str):
+        """策略切换时动态更新参数面板"""
+        if name == "趋势跟踪策略":
+            self.lbl_score.setText("最低评分 (30分制)")
+            self.lbl_max_buy.setText("最大持仓数")
+            self.spin_max_buy.setRange(1, 20)
+            self.spin_max_buy.setValue(5)
+            self.lbl_pos.hide()
+            self.spin_pos.hide()
+        else:  # 打板策略
+            self.lbl_score.setText("最低评分 (40分制)")
+            self.lbl_max_buy.setText("每日买入上限")
+            self.spin_max_buy.setRange(1, 10)
+            self.spin_max_buy.setValue(3)
+            self.lbl_pos.show()
+            self.spin_pos.show()
+
     # ============================================================
     # 运行回测
     # ============================================================
@@ -511,19 +583,25 @@ class BacktestMainWindow(QMainWindow):
         self.btn_export.setEnabled(False)
         self.progress_bar.setValue(0)
         self.progress_bar.show()
-        self.status_lbl.setText("🔄 正在获取数据...")
+        self.status_lbl.setText("正在获取数据...")
         self.sb.showMessage("回测进行中...")
 
         strategy_name = self.cmb_strategy.currentText()
+
+        # 根据策略类型构建不同参数
         params = {
             "min_score": self.spin_score.value(),
-            "max_daily_buy": self.spin_max_buy.value(),
-            "single_pct": self.spin_pos.value() / 100,
             "initial_capital": self.spin_capital.value(),
         }
+        if strategy_name == "打板策略":
+            params["max_daily_buy"] = self.spin_max_buy.value()
+            params["single_pct"] = self.spin_pos.value() / 100
+        elif strategy_name == "趋势跟踪策略":
+            params["max_positions"] = self.spin_max_buy.value()
 
+        init_cap = params.pop("initial_capital")
         try:
-            strategy = StrategyFactory.create(strategy_name, initial_capital=params.pop("initial_capital"))
+            strategy = StrategyFactory.create(strategy_name, initial_capital=init_cap)
         except Exception as e:
             QMessageBox.critical(self, "错误", f"策略创建失败: {e}")
             self._reset_ui()
@@ -562,6 +640,57 @@ class BacktestMainWindow(QMainWindow):
     def _reset_ui(self):
         self.btn_run.setEnabled(True)
         self.progress_bar.hide()
+
+    def run_risk_analysis(self):
+        """运行风险预警分析并显示结果"""
+        from strategy.risk_warning import RiskWarningEngine, compute_calendar_effects
+
+        self.status_lbl.setText("分析市场风险...")
+        self.btn_risk.setEnabled(False)
+        self.sb.showMessage("风险分析进行中...")
+
+        try:
+            engine = RiskWarningEngine()
+            result = engine.assess()
+
+            # 格式化为文本
+            lines = []
+            lines.append("=" * 50)
+            lines.append("  市 场 风 险 预 警 报 告")
+            lines.append("=" * 50)
+            lines.append(f"  时间: {result['时间戳']}")
+            lines.append(f"  综合风险: {result['风险分数']}/10  ->  {result['风险等级']}")
+            lines.append("-" * 46)
+
+            for dim_name, dim_info in result['各维度'].items():
+                val_str = dim_info.get('值', '')
+                lines.append(f"  {dim_name}: {dim_info['说明']} {val_str} [+{dim_info['分数']}]")
+
+            lines.append("-" * 46)
+            lines.append(f"  建议: {result['操作建议']}")
+            lines.append("=" * 50)
+
+            # 日历效应
+            lines.append("")
+            lines.append("  日历效应:")
+            effects = compute_calendar_effects()
+            for day, info in effects.items():
+                lines.append(f"    {day}: {info['样本数']}天  "
+                            f"下跌概率{info['下跌概率%']}%  "
+                            f"平均{info['平均涨跌幅%']:+.2f}%")
+            lines.append("")
+
+            self.risk_text.setText("\n".join(lines))
+            self.tabs.setCurrentWidget(self.tab_risk)
+
+            summary = f"风险 {result['风险分数']}/10 - {result['风险等级']}"
+            self.status_lbl.setText(summary)
+            self.sb.showMessage(f"风险分析完成 - {summary}")
+        except Exception as e:
+            self.risk_text.setText(f"风险分析失败: {e}")
+            self.status_lbl.setText(f"分析失败: {e}")
+        finally:
+            self.btn_risk.setEnabled(True)
 
     def _update_metrics(self, r):
         self.empty_metrics.hide()

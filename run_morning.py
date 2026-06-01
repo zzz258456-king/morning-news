@@ -15,6 +15,7 @@ import json
 import logging
 import sys
 import os
+from datetime import datetime
 from pathlib import Path
 
 # 确保项目根目录在 sys.path 中
@@ -26,6 +27,12 @@ from morning.ai_analyzer import analyze_news, AnalysisResult
 from morning.dingtalk_sender import send_analysis, build_markdown
 
 # ---------- 日志配置 ----------
+
+
+def _is_monday() -> bool:
+    """判断今天是否是周一"""
+    return datetime.now().weekday() == 0  # 0 = Monday
+
 
 def setup_logging(verbose: bool = False):
     """配置日志输出"""
@@ -48,13 +55,17 @@ def setup_logging(verbose: bool = False):
 
 # ---------- 子命令 ----------
 
-def cmd_fetch(verbose: bool):
+def cmd_fetch(verbose: bool, max_per_source: int = 20):
     """仅测试新闻抓取"""
     logging.info("=" * 40)
     logging.info("📡 测试新闻抓取")
     logging.info("=" * 40)
 
-    news_list = fetch_all_news()
+    if _is_monday():
+        max_per_source = 50
+        logging.info("📅 周一模式：加大抓取量覆盖周末消息")
+
+    news_list = fetch_all_news(max_per_source=max_per_source)
     if not news_list:
         logging.warning("⚠️ 未抓取到任何新闻，请检查 RSS 源 URL")
         return news_list
@@ -80,7 +91,10 @@ def cmd_analyze(verbose: bool):
         return None
 
     logging.info("开始分析...")
-    result = analyze_news(news_list)
+    is_monday = _is_monday()
+    if is_monday:
+        logging.info("📅 周一模式：AI 将汇总周末消息面")
+    result = analyze_news(news_list, is_monday=is_monday)
 
     if not result.valid:
         logging.warning("⚠️ 分析结果为空")
@@ -116,7 +130,10 @@ def cmd_send(verbose: bool):
 def cmd_dry_run(verbose: bool):
     """抓取 + 分析，结果打印到控制台，不推送"""
     logging.info("=" * 40)
-    logging.info("🔍 干运行模式（不推送钉钉）")
+    if _is_monday():
+        logging.info("🔍 干运行模式（周一 · 周末消息汇总）")
+    else:
+        logging.info("🔍 干运行模式（不推送钉钉）")
     logging.info("=" * 40)
 
     result = cmd_analyze(verbose)
@@ -144,14 +161,21 @@ def cmd_full(verbose: bool):
     logging.info("🚀 新闻晨报系统 - 完整流程")
     logging.info("=" * 40)
 
+    is_monday = _is_monday()
+    max_per_source = 50 if is_monday else 20
+    if is_monday:
+        logging.info("📅 周一模式：加大抓取量覆盖周末消息")
+
     # 1. 抓取
-    news_list = fetch_all_news()
+    news_list = fetch_all_news(max_per_source=max_per_source)
     if not news_list:
         logging.error("❌ 未抓取到新闻，流程终止")
         return False
 
     # 2. 分析
-    result = analyze_news(news_list)
+    if is_monday:
+        logging.info("📅 周一模式：AI 将汇总周末消息面")
+    result = analyze_news(news_list, is_monday=is_monday)
     if not result.valid:
         logging.warning("⚠️ 分析结果为空，但仍尝试推送")
 
@@ -273,6 +297,8 @@ def main():
     setup_logging(args.verbose)
     load_config()
     print(f"🚀 新闻晨报系统 v{morning.__version__}\n")
+    if _is_monday():
+        print("📅 周一模式：将汇总周末消息面（加大抓取量 + 专属分析提示）\n")
     check_config()
 
     # 路由

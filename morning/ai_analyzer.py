@@ -15,6 +15,13 @@ from .news_fetcher import NewsEntry
 
 logger = logging.getLogger(__name__)
 
+
+def _is_main_board(code: str) -> bool:
+    """检查股票代码是否属于主板或中小板（排除创业板300开头、科创板688开头）"""
+    code = code.strip()
+    return bool(code) and not (code.startswith("300") or code.startswith("688"))
+
+
 # ---------- 数据结构 ----------
 
 
@@ -113,13 +120,14 @@ _SYSTEM_PROMPT = """你是一位经验丰富的 A 股首席分析师。你的任
 5. 判断整体市场情绪（乐观/谨慎乐观/中性/谨慎悲观/悲观）
 6. 梳理关键事件及其影响
 
-推荐个股时请给出具体的 A 股代码（600/000/300/002/688开头），无法确定代码的写"未明确"。
+推荐个股时请给出具体的 A 股代码（500/600/000/002开头），无法确定代码的写"未明确"。
+**注意：只推荐主板和中小板股票，不要推荐创业板（300开头）和科创板（688开头）的股票。**
 请始终以 JSON 格式输出，不要包含 ```json 代码块标记，只输出纯 JSON。"""
 
 _USER_PROMPT_TEMPLATE = """请分析以下财经新闻，输出 JSON 格式的分析报告：
 
 当前日期：{date}
-
+{weekend_context}
 新闻内容：
 {news_text}
 
@@ -131,6 +139,7 @@ _USER_PROMPT_TEMPLATE = """请分析以下财经新闻，输出 JSON 格式的�
    - strength: 强度(1-5)
    - reason: 为什么该板块是今日最佳
    - stocks: 推荐的2只个股，每只包含 code(股票代码)、name(股票名称)、reason(推荐理由)
+   **注意：推荐的个股代码必须是主板或中小板（500/600/000/002开头），不要包含创业板（300开头）和科创板（688开头）。**
 
 2. good_sectors（其他利好板块列表，不包含 top_picks 中的板块）：
    每个包含 name(板块名称)、strength(强度1-5)、reason(理由)
@@ -167,12 +176,13 @@ def _build_news_text(news_list: list[NewsEntry], max_chars: int = 8000) -> str:
     return "\n".join(lines)
 
 
-def analyze_news(news_list: list[NewsEntry]) -> AnalysisResult:
+def analyze_news(news_list: list[NewsEntry], is_monday: bool = False) -> AnalysisResult:
     """
     调用 AI API（DeepSeek）分析新闻
 
     Args:
         news_list: 待分析的新闻列表
+        is_monday: 周一模式，汇总周末消息
 
     Returns:
         AnalysisResult 分析结果
@@ -185,9 +195,13 @@ def analyze_news(news_list: list[NewsEntry]) -> AnalysisResult:
 
     # 构建提示词
     news_text = _build_news_text(news_list)
+    weekend_context = ""
+    if is_monday:
+        weekend_context = "今日是周一，请重点汇总本周末（周五到周日）发生的所有重要消息，覆盖更全面，不要遗漏。\n\n"
     user_prompt = _USER_PROMPT_TEMPLATE.format(
         date=datetime.now().strftime("%Y-%m-%d"),
         news_text=news_text,
+        weekend_context=weekend_context,
     )
 
     logger.info(
@@ -271,11 +285,17 @@ def _json_to_result(data: dict[str, Any]) -> AnalysisResult:
         stocks = []
         for st in item.get("stocks", []):
             if isinstance(st, dict):
+                code = st.get("code", "")
+                if code and not _is_main_board(code):
+                    logger.info("过滤掉非主板个股: %s %s", code, st.get("name", ""))
+                    continue
                 stocks.append(StockRecommendation(
-                    code=st.get("code", ""),
+                    code=code,
                     name=st.get("name", ""),
                     reason=st.get("reason", ""),
                 ))
+        if not stocks:
+            logger.info("板块 [%s] 的推荐个股均为创业板/科创板，已全部过滤", item.get("name", ""))
         result.top_picks.append(TopPickSector(
             name=item.get("name", ""),
             strength=int(item.get("strength", 5)),
@@ -304,6 +324,10 @@ def _json_to_result(data: dict[str, Any]) -> AnalysisResult:
     # ----- 个股提及 -----
     for item in data.get("stock_mentions", []):
         if isinstance(item, dict):
+            code = item.get("code", "")
+            if code and not _is_main_board(code):
+                logger.info("过滤掉非主板个股提及: %s %s", code, item.get("name", ""))
+                continue
             result.stock_mentions.append(StockMention(
                 code=item.get("code", ""),
                 name=item.get("name", ""),
