@@ -8,8 +8,11 @@ on:
   schedule:
     # 北京时间 8:30 = UTC 0:30，周一至周五
     - cron: '30 0 * * 1-5'
-  # 也可手动触发（方便测试）
+  # 也可手动触发（方便测试 / 失败重跑）
   workflow_dispatch:
+  # 支持通过仓库 API 远程触发（可用 curl 从任何地方调用）
+  repository_dispatch:
+    types: [trigger-morning]
 
 jobs:
   morning-news:
@@ -38,6 +41,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-morning.txt
+
+      - name: 检查密钥配置
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DINGTALK_WEBHOOK_URL: ${{ secrets.DINGTALK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DEEPSEEK_API_KEY" ]; then echo "❌ secrets.DEEPSEEK_API_KEY 未配置！"; exit 1; fi
+          if [ -z "$DINGTALK_WEBHOOK_URL" ]; then echo "❌ secrets.DINGTALK_WEBHOOK_URL 未配置！"; exit 1; fi
+          echo "✅ 密钥检查通过"
 
       - name: 运行晨报
         env:
