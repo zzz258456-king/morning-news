@@ -11,11 +11,15 @@ morning:
     - name: "36氪"
       url: "https://36kr.com/feed"
     - name: "东方财富"
-      url: "https://finance.eastmoney.com/rss/soft.html"
-    - name: "华尔街见闻"
-      url: "https://wallstreetcn.com/rss/global"
+      url: "https://finance.eastmoney.com/a/czqyw.html"
     - name: "财联社电报"
       url: "https://www.cls.cn/telegraph"
+    - name: "新浪财经"
+      url: "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2509&k=&num=20"
+      type: "json_api"
+    - name: "新浪财经-滚动"
+      url: "https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2513&k=&num=20"
+      type: "json_api"
   max_news_per_source: 20
   monday_max_news: 50
 
@@ -78,8 +82,8 @@ data_update:
 
 # ---------- 微信互联 ----------
 wechat:
-  enabled: false
-  auto_login: false          # 启动时自动尝试加载凭证
+  enabled: true
+  auto_login: true           # 启动时自动尝试加载凭证
   poll_interval: 3.0         # 消息轮询间隔（秒）
   notify_on_startup: true    # 系统启动时发送通知
   dingtalk_fallback: true    # 微信推送失败时回退到钉钉

@@ -54,9 +54,10 @@ def _load_env() -> None:
 
 class RSSSource:
     """RSS 源配置"""
-    def __init__(self, name: str, url: str):
+    def __init__(self, name: str = "", url: str = "", fetch_type: str = "rss"):
         self.name = name
         self.url = url
+        self.fetch_type = fetch_type or "rss"
 
     def __repr__(self):
         return f"RSSSource({self.name}, {self.url})"
@@ -277,6 +278,7 @@ def _parse_rss_sources(raw_sources: list) -> list[RSSSource]:
         sources.append(RSSSource(
             name=s.get("name", "未知源"),
             url=s.get("url", ""),
+            fetch_type=s.get("type", "rss"),
         ))
     return sources
 
