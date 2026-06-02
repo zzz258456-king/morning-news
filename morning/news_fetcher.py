@@ -119,18 +119,50 @@ def _fallback_fetch(source: RSSSource) -> list[NewsEntry]:
 
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        # 提取所有段落文本
+        # 尝试从页面中提取新闻链接列表
+        news_entries = []
+        # 通用新闻列表提取：查找包含 a 标签且文本较长的链接
+        seen_titles = set()
+        for a_tag in soup.find_all("a", href=True):
+            title = a_tag.get_text(strip=True)
+            href = a_tag["href"]
+            # 过滤：至少10个字符、不重复、不含"登录/注册/关于"等
+            if len(title) >= 10 and title not in seen_titles:
+                skip_words = ["登录", "注册", "关于", "帮助", "隐私", "条款", "English"]
+                if any(w in title for w in skip_words):
+                    continue
+                if title.endswith("图") or title.endswith("专题"):
+                    continue
+                seen_titles.add(title)
+                # 补全相对链接
+                if href.startswith("//"):
+                    href = "https:" + href
+                elif href.startswith("/"):
+                    from urllib.parse import urljoin
+                    href = urljoin(source.url, href)
+                news_entries.append(NewsEntry(
+                    title=title,
+                    link=href,
+                    summary="",
+                    source_name=source.name,
+                ))
+                if len(news_entries) >= 15:  # 最多15条
+                    break
+
+        if news_entries:
+            logger.info("兜底抓取 [%s] 成功，获取 %d 条新闻", source.name, len(news_entries))
+            return news_entries
+
+        # 兜底：提取所有段落文本作为单条汇总
         paragraphs = soup.find_all(["p", "h1", "h2", "h3", "h4", "h5", "li"])
         texts = [p.get_text(strip=True) for p in paragraphs if p.get_text(strip=True)]
 
-        # 尝试获取页面标题
         page_title = ""
         title_tag = soup.find("title")
         if title_tag:
             page_title = title_tag.get_text(strip=True)
 
-        # 合并为一个条目（兜底场景下抓取整页内容）
-        combined = "\n".join(texts[:50])  # 限制前 50 个段落
+        combined = "\n".join(texts[:50])
         if combined:
             entries = [
                 NewsEntry(
@@ -140,7 +172,7 @@ def _fallback_fetch(source: RSSSource) -> list[NewsEntry]:
                     source_name=source.name,
                 )
             ]
-            logger.info("兜底抓取 [%s] 成功，获取 %d 字符", source.name, len(combined))
+            logger.info("兜底抓取 [%s] 成功（汇总模式），获取 %d 字符", source.name, len(combined))
             return entries
     except Exception as e:
         logger.error("兜底抓取失败 %s: %s", source.name, e)

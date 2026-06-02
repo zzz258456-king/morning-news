@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "stock-strategy-system"
+version = "2.0.0"
+description = "量化策略研究与预警系统 — 新闻晨报、风险预警、打板回测、遗传进化、定时调度"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+dependencies = [
+    "akshare>=1.14.0",
+    "baostock>=1.0.0",
+    "feedparser>=6.0.0",
+    "openai>=1.0.0",
+    "requests>=2.32.0",
+    "beautifulsoup4>=4.13.0",
+    "lxml>=5.3.0",
+    "pandas>=2.0.0",
+    "numpy>=1.24.0",
+    "matplotlib>=3.5.0",
+    "openpyxl>=3.1.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+    "schedule>=1.2.0",
+    "deap>=1.4.1",
+    "tabulate>=0.9.0",
+]
+
+[project.optional-dependencies]
+gui = ["PyQt6>=6.5.0", "pyqtgraph>=0.13.0"]
+web = ["fastapi>=0.115.0", "uvicorn[standard]>=0.34.0", "jinja2>=3.1.0"]
+all = ["stock-strategy-system[gui,web]"]
+
+[project.urls]
+Homepage = "https://github.com/your/stock-strategy-system"
+
+[project.scripts]
+stock-strategy = "main:main"
+morning-news = "run_morning:main"
+backtest = "strategy.run_backtest:main"
+
+[tool.setuptools.packages.find]
+include = ["morning*", "risk*", "strategy*", "scheduler*"]
+
+[tool.setuptools.package-data]
+morning = ["*.yaml"]

@@ -1,0 +1,92 @@
+# ============================================
+# StockStrategySystem — 统一配置文件
+# API Key 等敏感信息请放在 .env 中
+# ============================================
+
+# ---------- 新闻晨报 ----------
+morning:
+  enabled: true
+  schedule_time: "08:30"
+  rss_sources:
+    - name: "36氪"
+      url: "https://36kr.com/feed"
+    - name: "东方财富"
+      url: "https://finance.eastmoney.com/rss/soft.html"
+    - name: "华尔街见闻"
+      url: "https://wallstreetcn.com/rss/global"
+    - name: "财联社电报"
+      url: "https://www.cls.cn/telegraph"
+  max_news_per_source: 20
+  monday_max_news: 50
+
+# ---------- AI 分析（DeepSeek API）----------
+ai:
+  base_url: "https://api.deepseek.com/v1"
+  model: "deepseek-chat"
+  max_tokens: 4096
+
+# ---------- 钉钉推送 ----------
+dingtalk:
+  title: "【晨报】📰 财经新闻晨报"
+
+# ---------- 风险预警 ----------
+risk:
+  enabled: true
+  schedule_time: "08:30"
+  ad_warn: 30.0
+  ad_danger: 20.0
+  north_warn: -20.0
+  north_danger: -50.0
+  index_dev_warn: 5.0
+  index_dev_danger: 8.0
+  low_risk_max: 3
+  medium_risk_max: 6
+
+# ---------- 回测参数 ----------
+backtest:
+  initial_capital: 1_000_000
+  commission: 0.0003
+  slippage: 0.001
+  t_plus_1: true
+
+# ---------- 打板策略 ----------
+board_strategy:
+  min_score: 14
+  max_daily_buy: 3
+  single_pct: 0.10
+
+# ---------- 遗传算法进化 ----------
+evolution:
+  enabled: true
+  schedule_time: "16:00"
+  schedule_day: "fri"
+  population_size: 30
+  generations: 20
+  elite_ratio: 0.2
+  crossover_prob: 0.7
+  mutation_prob: 0.1
+  fitness_weights:
+    annual_return: 0.5
+    sharpe_ratio: 0.3
+    max_drawdown: -0.2
+
+# ---------- 数据更新 ----------
+data_update:
+  enabled: true
+  schedule_time: "15:30"
+  cache_hours: 24
+
+# ---------- 微信互联 ----------
+wechat:
+  enabled: false
+  auto_login: false          # 启动时自动尝试加载凭证
+  poll_interval: 3.0         # 消息轮询间隔（秒）
+  notify_on_startup: true    # 系统启动时发送通知
+  dingtalk_fallback: true    # 微信推送失败时回退到钉钉
+
+# ---------- 日志 ----------
+logging:
+  level: "INFO"
+  file: "logs/system.log"
+  max_bytes: 10485760
+  backup_count: 7
