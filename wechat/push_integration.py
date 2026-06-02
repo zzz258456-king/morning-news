@@ -123,30 +123,17 @@ def _push_dingtalk(title: str, body: str) -> bool:
 # ============================================================
 
 def push_morning_report(markdown: str, title: str = "📰 财经新闻晨报") -> bool:
-    """推送晨报（微信 + 钉钉双通道）"""
-    cfg = get_config()
-    wechat_enabled = hasattr(cfg, 'wechat') and cfg.wechat.enabled
-    dingtalk_webhook = cfg.dingtalk.webhook_url if hasattr(cfg, 'dingtalk') else ""
-
-    success = False
-
-    if wechat_enabled:
-        try:
-            bot = get_wechat_bot()
-            if bot.login(interactive=False) and bot.has_context_token:
-                text_body = _md_to_wechat_text(markdown)
-                success = bot.send_report(title, text_body)
-        except Exception as e:
-            logger.warning("微信推送晨报失败: %s", e)
-
-    if dingtalk_webhook:
-        try:
-            dingtalk_ok = send_dingtalk(markdown, title=title)
-            success = success or dingtalk_ok
-        except Exception as e:
-            logger.warning("钉钉推送晨报失败: %s", e)
-
-    return success
+    """推送晨报到微信"""
+    try:
+        bot = get_wechat_bot()
+        if bot.login(interactive=False) and bot.has_context_token:
+            text_body = _md_to_wechat_text(markdown)
+            return bot.send_report(title, text_body)
+        logger.warning("微信未就绪，无法推送晨报")
+        return False
+    except Exception as e:
+        logger.warning("微信推送晨报失败: %s", e)
+        return False
 
 
 def push_risk_warning(risk_section: str) -> bool:

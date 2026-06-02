@@ -99,7 +99,7 @@ def cmd_morning(dry_run: bool = False):
     result = analyze_news(news_list, is_monday=is_monday)
 
     # 5. 构建 Markdown
-    from morning.dingtalk_sender import build_markdown, send_dingtalk
+    from morning.dingtalk_sender import build_markdown
     source_names = [s.name for s in cfg.rss_sources]
     markdown = build_markdown(result, source_names)
 
@@ -146,35 +146,26 @@ def cmd_morning(dry_run: bool = False):
         logging.info("干运行完成（共 %d 字符）", len(markdown))
         return True
 
-    # 微信推送（如果启用）
+    # 微信推送（完整晨报 + 风险预警）
     wechat_enabled = hasattr(cfg, 'wechat') and cfg.wechat.enabled
     wechat_ok = False
+
+    full_md = markdown
+    if risk_section:
+        full_md += "\n" + risk_section
 
     if wechat_enabled:
         try:
             from wechat.push_integration import push_morning_report
-            wechat_ok = push_morning_report(markdown)
+            wechat_ok = push_morning_report(full_md)
         except Exception as e:
             logger.warning("微信推送晨报失败: %s", e)
 
-    # 钉钉推送
-    if not (wechat_ok and wechat_enabled):
-        success = send_dingtalk(markdown)
-        if success:
-            logging.info("晨报推送成功")
+    success = wechat_ok
+    if success:
+        logging.info("晨报已通过微信推送成功")
     else:
-        success = True
-
-    # 风险预警推送
-    if risk_section:
-        if wechat_enabled:
-            try:
-                from wechat.push_integration import push_risk_warning
-                push_risk_warning(risk_section)
-            except Exception as e:
-                logger.warning("微信推送风险预警失败: %s", e)
-        send_dingtalk(risk_section, title="【风险预警】市场风险评分")
-        logging.info("风险预警推送成功")
+        logging.warning("晨报推送失败（微信不可用）")
 
     logging.info("晨报流程执行完毕")
     return success
@@ -340,16 +331,8 @@ def cmd_wechat_login():
         print(f"   账号ID: {creds.accountId}")
         print(f"   凭证文件: {auth.cred_file}")
 
-        # 发送测试消息
-        try:
-            from wechat.bot import WeChatBot
-            bot = WeChatBot()
-            bot.auth = auth
-            bot._init_components()
-            bot.send_text("StockStrategySystem 微信互联已就绪!")
-            print("   📤 已发送测试消息到微信")
-        except Exception as e:
-            logger.warning("发送测试消息失败（不影响登录）: %s", e)
+        print(f"\n💡 下一步：请给机器人发一条微信消息激活连接")
+        print(f"   然后运行 python main.py --wechat 进入消息监听模式")
     else:
         print("\n❌ 微信登录失败")
     return bool(creds)

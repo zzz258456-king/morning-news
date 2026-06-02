@@ -30,15 +30,17 @@ class WeChatMessage:
 
     @classmethod
     def from_raw(cls, raw: dict) -> "WeChatMessage":
-        """从 API 原始响应解析消息"""
+        """从 API 原始响应解析消息（兼容 GET/POST 两种格式）"""
         msg = raw.get("msg", raw)
+        # POST 格式用 message_id，GET 格式用 msg_id
+        raw_id = msg.get("msg_id") or msg.get("message_id") or ""
         return cls(
-            msg_id=str(msg.get("msg_id", "")),
+            msg_id=str(raw_id),
             from_user_id=msg.get("from_user_id", ""),
             from_name=msg.get("from_name", "") or msg.get("nick_name", ""),
             content=_extract_text(msg.get("item_list", [])),
             msg_type=msg.get("message_type", 1),
-            create_time=msg.get("create_time", ""),
+            create_time=str(msg.get("create_time", "") or msg.get("create_time_ms", "")),
             context_token=msg.get("context_token", "") or raw.get("context_token", ""),
         )
 
@@ -96,7 +98,7 @@ class WeChatReceiver:
 
     def poll_once(self) -> int:
         """
-        执行一次长轮询获取消息
+        执行一次长轮询获取消息（POST 方式）
 
         Returns:
             收到的新消息数量
@@ -107,22 +109,24 @@ class WeChatReceiver:
 
         creds = self.auth.credentials
         headers = {
+            "Content-Type": "application/json; charset=utf-8",
             "Authorization": f"Bearer {creds.token}",
             "AuthorizationType": "ilink_bot_token",
             "User-Agent": "StockStrategySystem/1.0",
         }
 
-        params = (
-            f"bot_type=3"
-            f"&ilink_bot_id={creds.accountId}"
-            f"&timeout={self.poll_timeout}"
-        )
-        url = f"{BASE_URL}/ilink/bot/getupdates?{params}"
+        payload = {
+            "bot_type": 3,
+            "ilink_bot_id": creds.accountId,
+            "timeout": self.poll_timeout,
+        }
+        data = json.dumps(payload).encode("utf-8")
+        url = f"{BASE_URL}/ilink/bot/getupdates"
 
         try:
-            req = Request(url, headers=headers)
+            req = Request(url, data=data, headers=headers, method="POST")
             with urlopen(req, timeout=self.poll_timeout + 10) as resp:
-                data = json.loads(resp.read().decode())
+                result = json.loads(resp.read().decode())
         except URLError as e:
             logger.debug("消息轮询超时或网络错误: %s", e)
             return 0
@@ -133,8 +137,8 @@ class WeChatReceiver:
             logger.debug("消息轮询异常: %s", e)
             return 0
 
-        # 解析消息列表
-        msg_list = data if isinstance(data, list) else data.get("data", [])
+        # 解析消息列表（POST 返回 {"msgs": [...]} 格式）
+        msg_list = result.get("msgs", [])
         if not msg_list:
             return 0
 
