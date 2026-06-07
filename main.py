@@ -98,6 +98,15 @@ def cmd_morning(dry_run: bool = False):
     # 3. AI 分析
     result = analyze_news(news_list, is_monday=is_monday)
 
+    # 4. 留存推荐股票记录
+    try:
+        from strategy.recommendation_recorder import record_recommendations
+        n_rec = record_recommendations(result)
+        if n_rec > 0:
+            logging.info("已留存 %d 条推荐股票记录", n_rec)
+    except Exception as e:
+        logger.warning("推荐股票留存失败: %s", e)
+
     # 5. 构建 Markdown
     from morning.dingtalk_sender import build_markdown
     source_names = [s.name for s in cfg.rss_sources]
@@ -371,6 +380,57 @@ def cmd_wechat():
 
 
 # ============================================================
+# AI 推荐回测命令
+# ============================================================
+
+def cmd_ai_backtest():
+    """运行 AI 推荐选股回测"""
+    from strategy.ai_recommendation import AIPickStrategy
+    import logging
+    logging.basicConfig(level=logging.WARNING)
+
+    print("\n" + "=" * 50)
+    print("  AI 推荐选股回测")
+    print("=" * 50)
+
+    s = AIPickStrategy()
+    engine = s.run_with_report(max_per_day=2, position_pct=50.0, min_strength=3)
+
+    print(f"\n📈 推荐股票留存地址: data/recommendations/")
+    return True
+
+
+# ============================================================
+# Web 平台命令
+# ============================================================
+
+def cmd_web():
+    """启动 Web 平台"""
+    import uvicorn
+    from web.database import init_db
+
+    # 初始化数据库
+    init_db()
+
+    logging.info("启动 Web 平台: http://127.0.0.1:8000")
+    print("\n" + "=" * 50)
+    print("  📈 股票策略系统 Web 平台")
+    print("  地址: http://127.0.0.1:8000")
+    print("  API 文档: http://127.0.0.1:8000/docs")
+    print("  按 Ctrl+C 停止")
+    print("=" * 50 + "\n")
+
+    uvicorn.run(
+        "web.app:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=False,
+        log_level="info",
+    )
+    return True
+
+
+# ============================================================
 # 辅助
 # ============================================================
 
@@ -401,6 +461,8 @@ def main():
     python main.py --update_data           更新数据
     python main.py --wechat-login          微信扫码登录
     python main.py --wechat                微信消息监听
+    python main.py --ai-backtest           AI推荐选股回测
+    python main.py --web                   Web 平台
     python main.py --all                   常驻进程模式
         """,
     )
@@ -411,6 +473,8 @@ def main():
     parser.add_argument("--update_data", action="store_true", help="更新历史数据")
     parser.add_argument("--wechat-login", action="store_true", dest="wechat_login", help="微信扫码登录")
     parser.add_argument("--wechat", action="store_true", help="微信消息监听模式")
+    parser.add_argument("--ai-backtest", action="store_true", dest="ai_backtest", help="AI推荐选股回测")
+    parser.add_argument("--web", action="store_true", help="启动 Web 平台")
     parser.add_argument("--all", action="store_true", help="常驻进程模式，按定时任务运行")
 
     args = parser.parse_args()
@@ -437,6 +501,10 @@ def main():
         cmd_wechat_login()
     elif args.wechat:
         cmd_wechat()
+    elif args.ai_backtest:
+        cmd_ai_backtest()
+    elif args.web:
+        cmd_web()
     elif args.all:
         cmd_all()
     else:
@@ -464,15 +532,17 @@ def _interactive_menu():
   [5] 🔄 更新数据
   [6] 🔐 微信扫码登录
   [7] 📱 微信消息监听
-  [8] ⏰ 常驻进程模式
-  [9] ❓ 查看命令行帮助
+  [8] 🤖 AI推荐选股回测
+  [9] 📈 Web 平台
+  [10] ⏰ 常驻进程模式
+  [11] ❓ 查看命令行帮助
   [0] 🚪 退出
 """
     print(banner)
 
     while True:
         try:
-            choice = input("请输入数字 (0-9): ").strip()
+            choice = input("请输入数字 (0-11): ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\n退出")
             break
@@ -492,9 +562,13 @@ def _interactive_menu():
         elif choice == "7":
             cmd_wechat()
         elif choice == "8":
+            cmd_ai_backtest()
+        elif choice == "9":
+            cmd_web()
+        elif choice == "10":
             cmd_all()
             break
-        elif choice == "9":
+        elif choice == "11":
             print(__doc__)
         elif choice == "0":
             print("退出")

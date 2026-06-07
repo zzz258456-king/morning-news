@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票策略系统 Web 平台</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f1117;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            color: #60a5fa;
+        }
+        .subtitle {
+            color: #888;
+            margin-bottom: 2rem;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1rem;
+        }
+        .card {
+            background: #1a1b26;
+            border: 1px solid #2a2b3a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: border-color 0.2s;
+        }
+        .card:hover {
+            border-color: #60a5fa;
+        }
+        .card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #c0c0c0;
+        }
+        .card .endpoint {
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: #60a5fa;
+            background: #0f1117;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            display: inline-block;
+            margin: 0.2rem 0;
+        }
+        .card p {
+            font-size: 0.9rem;
+            color: #888;
+            margin-top: 0.5rem;
+        }
+        .status {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            background: #064e3b;
+            color: #6ee7b7;
+        }
+        .footer {
+            margin-top: 3rem;
+            text-align: center;
+            color: #555;
+            font-size: 0.85rem;
+        }
+        a { color: #60a5fa; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📈 股票策略系统 Web 平台</h1>
+        <p class="subtitle">量化策略研究与预警系统 · API 服务运行中 <span class="status">● 正常</span></p>
+
+        <div class="grid">
+            <div class="card">
+                <h3>📰 晨报数据</h3>
+                <div class="endpoint">GET /api/morning/today</div>
+                <div class="endpoint">GET /api/morning/{date}</div>
+                <p>获取 AI 分析的晨报数据，包含推荐股票、板块分析、市场情绪</p>
+            </div>
+
+            <div class="card">
+                <h3>🛡️ 风险预警</h3>
+                <div class="endpoint">GET /api/risk/today</div>
+                <p>综合风险评估：涨跌家数、北向资金、指数偏离、日历效应</p>
+            </div>
+
+            <div class="card">
+                <h3>📊 基本面分析</h3>
+                <div class="endpoint">GET /api/fundamental/{code}</div>
+                <div class="endpoint">GET /api/fundamental/stock/{code}/intraday</div>
+                <p>5 维度量化评分、分时数据</p>
+            </div>
+
+            <div class="card">
+                <h3>💰 资金流向</h3>
+                <div class="endpoint">GET /api/fund-flow/today</div>
+                <div class="endpoint">GET /api/fund-flow/{date}</div>
+                <p>板块资金流向排名（行业/概念/地域）</p>
+            </div>
+
+            <div class="card">
+                <h3>📝 交易记录</h3>
+                <div class="endpoint">GET/POST /api/trades</div>
+                <div class="endpoint">PUT/DELETE /api/trades/{id}</div>
+                <p>交易记录 CRUD，盈亏统计</p>
+            </div>
+
+            <div class="card">
+                <h3>📅 历史记录</h3>
+                <div class="endpoint">GET /api/history/calendar/{year}/{month}</div>
+                <div class="endpoint">GET /api/history/{date}</div>
+                <p>日历视图、日详情（交易+日志+资金流向）</p>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>API 文档: <a href="/docs">Swagger UI</a> · <a href="/redoc">ReDoc</a></p>
+            <p style="margin-top: 0.5rem;">StockStrategySystem v2 · Powered by FastAPI</p>
+        </div>
+    </div>
+</body>
+</html>
