@@ -36,6 +36,12 @@ def _is_monday() -> bool:
 
 def setup_logging(verbose: bool = False):
     """配置日志输出"""
+    # 修复 Windows 控制台编码问题
+    if sys.platform == 'win32':
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+
     level = logging.DEBUG if verbose else logging.INFO
     fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     formatter = logging.Formatter(fmt, datefmt="%H:%M:%S")
@@ -593,6 +599,11 @@ def main():
     parser.add_argument("--db-backup", action="store_true", help="手动备份")
     parser.add_argument("--db-cleanup", action="store_true", help="清理旧数据")
 
+    # Web UI
+    parser.add_argument("--web", action="store_true", help="启动 Web UI")
+    parser.add_argument("--web-port", type=int, default=5000, help="Web UI 端口")
+    parser.add_argument("--web-host", default="0.0.0.0", help="Web UI 主机")
+
     args = parser.parse_args()
 
     # 初始化
@@ -610,7 +621,10 @@ def main():
     db_manager = DBManager(config.database.daily_path, config.database.global_path)
 
     # 路由命令
-    if args.fetch:
+    if args.web:
+        from morning.web_server import run_web_server
+        run_web_server(host=args.web_host, port=args.web_port, debug=args.verbose)
+    elif args.fetch:
         cmd_fetch(args.verbose)
     elif args.analyze:
         cmd_analyze(args.verbose)

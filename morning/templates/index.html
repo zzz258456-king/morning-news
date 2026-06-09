@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>晨报系统 - 管理面板</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 侧边栏 -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fas fa-newspaper"></i> 晨报系统</h2>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item active" data-page="dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>仪表盘</span>
+                </li>
+                <li class="nav-item" data-page="morning">
+                    <i class="fas fa-sun"></i>
+                    <span>晨报</span>
+                </li>
+                <li class="nav-item" data-page="anomaly">
+                    <i class="fas fa-chart-line"></i>
+                    <span>异动监控</span>
+                </li>
+                <li class="nav-item" data-page="track">
+                    <i class="fas fa-history"></i>
+                    <span>晚间回溯</span>
+                </li>
+                <li class="nav-item" data-page="watchlist">
+                    <i class="fas fa-star"></i>
+                    <span>特别关注</span>
+                </li>
+                <li class="nav-item" data-page="trade">
+                    <i class="fas fa-exchange-alt"></i>
+                    <span>操作日志</span>
+                </li>
+                <li class="nav-item" data-page="database">
+                    <i class="fas fa-database"></i>
+                    <span>数据库管理</span>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 仪表盘页面 -->
+            <div id="page-dashboard" class="page active">
+                <div class="page-header">
+                    <h1><i class="fas fa-tachometer-alt"></i> 仪表盘</h1>
+                    <p>系统状态概览</p>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-database"></i></div>
+                        <div class="stat-info">
+                            <h3 id="stat-daily-db">0</h3>
+                            <p>每日数据库</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-star"></i></div>
+                        <div class="stat-info">
+                            <h3 id="stat-watchlist">0</h3>
+                            <p>特别关注</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-exchange-alt"></i></div>
+                        <div class="stat-info">
+                            <h3 id="stat-trades">0</h3>
+                            <p>操作记录</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fas fa-chart-bar"></i></div>
+                        <div class="stat-info">
+                            <h3 id="stat-recommendations">0</h3>
+                            <p>最近推荐</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="content-grid">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-clock"></i> 最近推荐</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="recent-recommendations" class="list-container">
+                                <p class="empty-message">暂无推荐记录</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fas fa-star"></i> 特别关注</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="recent-watchlist" class="list-container">
+                                <p class="empty-message">暂无特别关注</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 晨报页面 -->
+            <div id="page-morning" class="page">
+                <div class="page-header">
+                    <h1><i class="fas fa-sun"></i> 晨报</h1>
+                    <p>运行晨报，抓取新闻 → AI 分析 → 钉钉推送</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>晨报操作</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="button-group">
+                            <button class="btn btn-primary" onclick="runMorning()">
+                                <i class="fas fa-play"></i> 运行晨报
+                            </button>
+                            <button class="btn btn-secondary" onclick="runMorningDryRun()">
+                                <i class="fas fa-eye"></i> 预览不推送
+                            </button>
+                        </div>
+                        <div id="morning-result" class="result-container" style="display: none;">
+                            <h4>执行结果</h4>
+                            <pre id="morning-output"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 异动监控页面 -->
+            <div id="page-anomaly" class="page">
+                <div class="page-header">
+                    <h1><i class="fas fa-chart-line"></i> 异动监控</h1>
+                    <p>监控宏观经济、大宗商品、科技赛道、突发事件</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>异动监控操作</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="button-group">
+                            <button class="btn btn-primary" onclick="runAnomaly()">
+                                <i class="fas fa-play"></i> 运行异动监控
+                            </button>
+                        </div>
+                        <div id="anomaly-result" class="result-container" style="display: none;">
+                            <h4>监控结果</h4>
+                            <div id="anomaly-scores" class="scores-grid"></div>
+                            <div id="anomaly-summary" class="summary-box"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 晚间回溯页面 -->
+            <div id="page-track" class="page">
+                <div class="page-header">
+                    <h1><i class="fas fa-history"></i> 晚间回溯</h1>
+                    <p>跟踪推荐股票和特别关注股票的行情</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>晚间回溯操作</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="track-days">跟踪天数</label>
+                            <input type="number" id="track-days" value="5" min="1" max="30">
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-primary" onclick="runTrack()">
+                                <i class="fas fa-play"></i> 运行晚间回溯
+                            </button>
+                        </div>
+                        <div id="track-result" class="result-container" style="display: none;">
+                            <h4>跟踪报告</h4>
+                            <pre id="track-output"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 特别关注页面 -->
+            <div id="page-watchlist" class="page">
+                <div class="page-header">
+                    <h1><i class="fas fa-star"></i> 特别关注</h1>
+                    <p>管理特别关注的股票列表</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>添加关注</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="watch-stock-code">股票代码</label>
+                                <input type="text" id="watch-stock-code" placeholder="000001">
+                            </div>
+                            <div class="form-group">
+                                <label for="watch-stock-name">股票名称</label>
+                                <input type="text" id="watch-stock-name" placeholder="平安银行">
+                            </div>
+                            <div class="form-group">
+                                <label for="watch-price">关注价格</label>
+                                <input type="number" id="watch-price" step="0.01" placeholder="10.83">
+                            </div>
+                            <div class="form-group">
+                                <label for="watch-group">分组</label>
+                                <select id="watch-group">
+                                    <option value="默认">默认</option>
+                                    <option value="短线">短线</option>
+                                    <option value="中线">中线</option>
+                                    <option value="长线">长线</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="watch-reason">关注理由</label>
+                            <input type="text" id="watch-reason" placeholder="突破年线">
+                        </div>
+                        <button class="btn btn-primary" onclick="addWatchlist()">
+                            <i class="fas fa-plus"></i> 添加关注
+                        </button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>关注列表</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="watchlist-container" class="table-container">
+                            <p class="empty-message">暂无特别关注</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作日志页面 -->
+            <div id="page-trade" class="page">
+                <div class="page-header">
+                    <h1><i class="fas fa-exchange-alt"></i> 操作日志</h1>
+                    <p>记录交易操作，支持复盘分析</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>记录操作</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="tabs">
+                            <button class="tab-btn active" data-tab="buy">买入</button>
+                            <button class="tab-btn" data-tab="sell">卖出</button>
+                        </div>
+                        <div id="tab-buy" class="tab-content active">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="buy-stock-code">股票代码</label>
+                                    <input type="text" id="buy-stock-code" placeholder="000001">
+                                </div>
+                                <div class="form-group">
+                                    <label for="buy-stock-name">股票名称</label>
+                                    <input type="text" id="buy-stock-name" placeholder="平安银行">
+                                </div>
+                                <div class="form-group">
+                                    <label for="buy-price">买入价格</label>
+                                    <input type="number" id="buy-price" step="0.01" placeholder="10.83">
+                                </div>
+                                <div class="form-group">
+                                    <label for="buy-quantity">买入数量</label>
+                                    <input type="number" id="buy-quantity" placeholder="1000">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="buy-reason">买入理由</label>
+                                    <input type="text" id="buy-reason" placeholder="突破年线">
+                                </div>
+                                <div class="form-group">
+                                    <label for="buy-emotion">情绪</label>
+                                    <select id="buy-emotion">
+                                        <option value="">请选择</option>
+                                        <option value="自信">自信</option>
+                                        <option value="犹豫">犹豫</option>
+                                        <option value="恐惧">恐惧</option>
+                                        <option value="贪婪">贪婪</option>
+                                        <option value="平静">平静</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="buy-tags">标签</label>
+                                    <select id="buy-tags" multiple>
+                                        <option value="技术面">技术面</option>
+                                        <option value="基本面">基本面</option>
+                                        <option value="消息面">消息面</option>
+                                        <option value="资金面">资金面</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="recordBuy()">
+                                <i class="fas fa-plus"></i> 记录买入
+                            </button>
+                        </div>
+                        <div id="tab-sell" class="tab-content">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="sell-stock-code">股票代码</label>
+                                    <input type="text" id="sell-stock-code" placeholder="000001">
+                                </div>
+                                <div class="form-group">
+                                    <label for="sell-stock-name">股票名称</label>
+                                    <input type="text" id="sell-stock-name" placeholder="平安银行">
+                                </div>
+                                <div class="form-group">
+                                    <label for="sell-price">卖出价格</label>
+                                    <input type="number" id="sell-price" step="0.01" placeholder="11.13">
+                                </div>
+                                <div class="form-group">
+                                    <label for="sell-quantity">卖出数量</label>
+                                    <input type="number" id="sell-quantity" placeholder="1000">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="sell-reason">卖出理由</label>
+                                    <input type="text" id="sell-reason" placeholder="止盈">
+                                </div>
+                                <div class="form-group">
+                                    <label for="sell-emotion">情绪</label>
+                                    <select id="sell-emotion">
+                                        <option value="">请选择</option>
+                                        <option value="自信">自信</option>
+                                        <option value="犹豫">犹豫</option>
+                                        <option value="恐惧">恐惧</option>
+                                        <option value="贪婪">贪婪</option>
+                                        <option value="平静">平静</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="sell-profit-loss">盈亏</label>
+                                    <input type="number" id="sell-profit-loss" step="0.01" placeholder="0.028">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="recordSell()">
+                                <i class="fas fa-plus"></i> 记录卖出
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>操作统计</h3>
+                        <div class="card-actions">
+                            <select id="stats-days" onchange="loadTradeStats()">
+                                <option value="7">最近7天</option>
+                                <option value="30" selected>最近30天</option>
+                                <option value="90">最近90天</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="trade-stats" class="stats-grid">
+                            <p class="empty-message">暂无统计数据</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>操作记录</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="trade-records" class="table-container">
+                            <p class="empty-message">暂无操作记录</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据库管理页面 -->
+            <div id="page-database" class="page">
+                <div class="page-header">
+                    <h1><i class="fas fa-database"></i> 数据库管理</h1>
+                    <p>查看数据库状态，备份和清理数据</p>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>数据库状态</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="db-status" class="stats-grid">
+                            <p class="empty-message">加载中...</p>
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-primary" onclick="loadDbStatus()">
+                                <i class="fas fa-refresh"></i> 刷新状态
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>数据库操作</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="button-group">
+                            <button class="btn btn-warning" onclick="backupDb()">
+                                <i class="fas fa-download"></i> 备份数据库
+                            </button>
+                            <button class="btn btn-danger" onclick="cleanupDb()">
+                                <i class="fas fa-trash"></i> 清理旧数据
+                            </button>
+                        </div>
+                        <div id="db-operation-result" class="result-container" style="display: none;">
+                            <h4>操作结果</h4>
+                            <pre id="db-operation-output"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 消息提示 -->
+    <div id="toast" class="toast" style="display: none;">
+        <div class="toast-content">
+            <i class="fas fa-info-circle"></i>
+            <span id="toast-message"></span>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

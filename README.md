@@ -1,248 +1,219 @@
-# 🚀 StockStrategySystem — 量化策略研究与预警系统
+# 晨报系统
 
-量化策略研究与预警系统，集成新闻晨报、风险预警、打板策略回测、遗传算法参数进化、定时调度等模块。
+A股财经新闻晨报系统，支持异动监控、晚间回溯、特别关注、操作日志等功能。
 
----
+## 功能模块
 
-## 📦 环境要求
+### 1. 晨报
+- 抓取财经新闻（RSS/API）
+- AI 分析（DeepSeek API）
+- 钉钉推送
 
-- Python 3.10+
-- 虚拟环境（推荐）
+### 2. 异动监控
+- 宏观经济（美联储利率、CPI）
+- 大宗商品（期货、黄金）
+- 科技赛道（AI、芯片、新能源）
+- 突发事件（政策、地缘政治）
+- 量化评分（0-100分），60分阈值推送
+
+### 3. 晚间回溯
+- 跟踪推荐股票（5天）
+- 跟踪特别关注股票（持续）
+- 获取完整行情数据（OHLC + 成交量 + 换手率）
+- 生成跟踪报告
+
+### 4. 特别关注
+- 添加/删除关注股票
+- 分组管理（短线/中线/长线）
+- 持续跟踪
+
+### 5. 操作日志
+- 记录买入/卖出操作
+- 情绪标签（自信/犹豫/恐惧/贪婪/平静）
+- 交易标签（技术面/基本面/消息面/资金面）
+- 复盘报告（胜率、盈亏比、情绪分析）
+
+### 6. 数据库管理
+- 每日独立数据库
+- 全局数据库（特别关注、操作日志）
+- 备份和清理
+
+## 安装
 
 ```bash
-# 激活虚拟环境
-.\.venv\Scripts\Activate
+# 克隆项目
+git clone <repository-url>
+cd try
+
+# 创建虚拟环境
+python -m venv .venv
+.venv\Scripts\activate  # Windows
+# source .venv/bin/activate  # Linux/Mac
 
 # 安装依赖
 pip install -r requirements.txt
 ```
 
----
+## 配置
 
-## 🚀 快速开始
+1. 复制 `.env.example` 为 `.env`
+2. 填入 API 密钥：
+   - `DEEPSEEK_API_KEY` - DeepSeek API 密钥
+   - `DINGTALK_WEBHOOK_URL` - 钉钉 Webhook URL
+   - `DINGTALK_SECRET` - 钉钉签名密钥（可选）
 
-### 1. 配置
+## 使用
 
-编辑项目根目录的 `config.yaml`，配置 API Key 等敏感信息放在 `.env` 中：
-
-```bash
-# .env 文件
-DEEPSEEK_API_KEY=sk-your-key-here
-DINGTALK_WEBHOOK_URL=https://oapi.dingtalk.com/robot/send?access_token=xxx
-DINGTALK_SECRET=your-secret-here  # 可选，加签模式
-```
-
-### 2. 运行
+### 命令行模式
 
 ```bash
-# 查看帮助
-python main.py
+# 晨报流程
+python run_morning.py                    # 完整晨报
+python run_morning.py --dry-run          # 预览不推送
 
-# 晨报干运行（抓取+分析，不推送）
-python main.py --dry-run
+# 异动监控
+python run_morning.py --anomaly          # 运行异动监控
 
-# 完整晨报流程（抓取→分析→风险→推送）
-python main.py --morning
+# 晚间回溯
+python run_morning.py --track            # 运行晚间回溯
+python run_morning.py --track --days 10  # 指定跟踪天数
 
-# 仅风险预警
-python main.py --risk
+# 特别关注
+python run_morning.py --watch add 000001 平安银行 --reason "突破年线" --group 短线
+python run_morning.py --watch list
+python run_morning.py --watch remove 000001
 
-# 策略参数进化（遗传算法）
-python main.py --evolution
+# 操作日志
+python run_morning.py --trade buy 000001 10.83 1000 --reason "突破年线" --emotion 自信
+python run_morning.py --trade sell 000001 11.13 1000 --reason "止盈" --emotion 犹豫
+python run_morning.py --trade review --days 30
 
-# 常驻进程模式（按定时任务自动运行）
-python main.py --all
+# 数据库管理
+python run_morning.py --db-status        # 查看状态
+python run_morning.py --db-backup        # 备份数据库
+python run_morning.py --db-cleanup       # 清理旧数据
 ```
 
----
+### Web UI 模式
 
-## 📂 项目结构
+```bash
+# 启动 Web UI
+python run_morning.py --web
+
+# 自定义端口
+python run_morning.py --web --web-port 8080
+
+# 详细日志
+python run_morning.py --web -v
+```
+
+然后浏览器访问 `http://localhost:5000`
+
+### 打包为可执行程序
+
+```bash
+# 安装 PyInstaller
+pip install pyinstaller
+
+# 打包
+pyinstaller morning.spec
+
+# 生成的可执行文件在 dist/morning.exe
+```
+
+## 项目结构
 
 ```
 try/
-├── main.py                 # 统一入口（StockStrategySystem）
-├── run.py                  # 旧入口（回测系统）
-├── config.yaml             # 统一配置文件
-├── config.py               # Python 配置常量
-├── .env                    # 密钥文件
-├── requirements.txt        # 依赖清单
-│
-├── morning/                # 📰 新闻晨报模块
+├── morning/                    # 核心模块
 │   ├── __init__.py
-│   ├── config.py           # 配置加载（读取 config.yaml）
-│   ├── news_fetcher.py     # RSS 新闻抓取
-│   ├── ai_analyzer.py      # DeepSeek AI 分析
-│   ├── dingtalk_sender.py  # 钉钉消息推送
-│   └── risk_integration.py # 风险预警整合为晨报附件
-│
-├── risk/                   # 🛡️ 风险预警模块
-│   ├── __init__.py
-│   ├── risk_engine.py      # 综合风险评分引擎 (0-10分)
-│   ├── data_provider.py    # 市场数据获取
-│   └── calendar_effects.py # 日历效应统计
-│
-├── strategy/               # 📊 策略回测模块
-│   ├── __init__.py
-│   ├── base.py             # 策略基类
-│   ├── board_chaser.py     # 打板策略 v3
-│   ├── trend_follower.py   # 趋势跟踪策略
-│   ├── backtest_engine.py  # 回测引擎
-│   ├── data_fetcher.py     # 数据获取
-│   ├── evolver.py          # 遗传算法进化器
-│   └── risk_warning.py     # 旧版风险预警（已迁移）
-│
-├── scheduler/              # ⏰ 定时调度模块
-│   ├── __init__.py
-│   └── tasks.py            # 定时任务定义
-│
-├── data/                   # 数据目录
-│   ├── raw/                # 原始数据
-│   └── processed/          # 处理后数据
-│
-└── logs/                   # 日志目录
+│   ├── config.py              # 配置模块
+│   ├── news_fetcher.py        # 新闻抓取
+│   ├── ai_analyzer.py         # AI 分析
+│   ├── dingtalk_sender.py     # 钉钉推送
+│   ├── fundamental_analyzer.py # 基本面分析
+│   ├── anomaly_monitor.py     # 异动监控
+│   ├── stock_tracker.py       # 晚间回溯
+│   ├── watchlist_manager.py   # 特别关注
+│   ├── trade_journal.py       # 操作日志
+│   ├── db_manager.py          # 数据库管理
+│   ├── web_server.py          # Web UI 服务器
+│   ├── templates/             # HTML 模板
+│   └── static/                # 静态资源
+├── tests/                     # 测试文件
+├── data/                      # 数据目录
+│   ├── daily/                 # 每日数据库
+│   ├── global.db              # 全局数据库
+│   └── backup/                # 备份目录
+├── config.yaml                # 配置文件
+├── .env                       # 环境变量
+├── requirements.txt           # 依赖列表
+├── run_morning.py             # 主入口
+└── morning.spec               # PyInstaller 配置
 ```
 
----
+## 配置说明
 
-## 📰 新闻晨报模块
-
-**功能：** 每日开盘前自动抓取财经新闻 → AI 分析 → 钉钉推送
-
-**RSS 源配置：** 编辑 `config.yaml` 的 `morning.rss_sources` 列表
-
-**周一模式：** 自动加大抓取量（50条/源），AI 汇总周末消息面
-
-**数据流：**
-```
-RSS 源 → news_fetcher.py → 新闻列表
-                                ↓
-news_list → ai_analyzer.py → AnalysisResult (市场情绪/板块/个股)
-                                ↓
-AnalysisResult → dingtalk_sender.py → 钉钉 Markdown 推送
-                                ↓
-                    risk_integration.py → 风险预警追加
-```
-
-**运行方式：**
-```bash
-# 完整流程
-python main.py --morning
-
-# 干运行（不推送）
-python main.py --dry-run
-```
-
----
-
-## 🛡️ 风险预警模块
-
-**功能：** 综合评估大盘风险，输出 0-10 分评分
-
-**评分维度（满分10分）：**
-
-| 维度 | 分数 | 数据源 |
-|------|:----:|--------|
-| 涨跌家数比 | 0-3 | akshare 全市场涨跌统计 |
-| 北向资金净流入 | 0-3 | akshare 沪/深港通数据 |
-| 指数均线偏离度 | 0-3 | 上证指数 20/60 日均线 |
-| 日历效应 | 0-1 | 历史星期几概率统计 |
-
-**风险等级：**
-- **0-3 分**：低风险 ✅ — 可正常交易
-- **4-6 分**：中风险 ⚠️ — 控制仓位 ≤ 70%，暂停追高
-- **7-10 分**：高风险 🔴 — 减仓至半仓以下，不开新仓
-
-**独立运行：**
-```bash
-python main.py --risk
-```
-
----
-
-## 🧬 遗传算法进化器
-
-**功能：** 使用 DEAP 库搜索最优策略参数组合
-
-**优化参数（11个维度）：**
-
-| 参数 | 范围 | 说明 |
-|------|:----:|------|
-| min_score | 8-28 | 打板评分最低阈值 |
-| buy_timeout_minutes | 30-90 | 买入截止时间(距9:30分钟) |
-| min_seal_ratio | 0.02-0.20 | 最小封单额/成交额比 |
-| turnover_min | 1.0-8.0 | 最小换手率 % |
-| turnover_max | 15.0-35.0 | 最大换手率 % |
-| market_cap_min | 10-50 | 最小流通市值(亿) |
-| profit_target | 0.03-0.12 | 止盈目标 |
-| stop_loss | -0.08 至 -0.02 | 止损线 |
-| trailing_stop | 0.01-0.05 | 回落止盈 |
-| max_daily_buy | 1-5 | 每日最大买入数 |
-| single_pct | 0.05-0.25 | 单票仓位占比 |
-
-**适应度函数：** 年化收益×0.5 + 夏普比率×0.3 - 最大回撤×0.2
-
-**运行：**
-```bash
-python main.py --evolution
-```
-
-**配置进化参数：** `config.yaml` → `evolution:` 节
-
----
-
-## ⏰ 定时调度
-
-**支持的定时任务：**
-
-| 任务 | 默认时间 | 频率 |
-|------|:--------:|:----:|
-| 新闻晨报 + 风险预警 | 08:30 | 每个交易日 |
-| 数据更新 | 15:30 | 每个交易日 |
-| 策略进化 | 周五 16:00 | 每周 |
-
-**常驻进程模式：**
-```bash
-python main.py --all
-```
-
----
-
-## ⚙️ 配置文件
-
-`config.yaml` 是统一配置入口，涵盖所有模块参数：
+### config.yaml
 
 ```yaml
-morning:
+# 异动监控
+anomaly_monitor:
   enabled: true
-  schedule_time: "08:30"
-  rss_sources:
-    - name: "36氪"
-      url: "https://36kr.com/feed"
-    - name: "东方财富"
-      url: "https://finance.eastmoney.com/a/czqyw.html"
-  max_news_per_source: 20
-  monday_max_news: 50
+  push_threshold: 60  # 推送阈值（0-100）
+
+# 晚间回溯
+stock_tracker:
+  enabled: true
+  tracking_days: 5  # 跟踪天数
+
+# 特别关注
+watchlist:
+  enabled: true
+  groups:
+    - name: "短线"
+    - name: "中线"
+    - name: "长线"
+
+# 操作日志
+trade_journal:
+  enabled: true
+  emotion_tags: ["自信", "犹豫", "恐惧", "贪婪", "平静"]
+  trade_tags: ["技术面", "基本面", "消息面", "资金面"]
+
+# 数据库
+database:
+  daily_path: "data/daily"
+  global_path: "data/global.db"
+  backup_days: 30
+  cleanup_days: 90
 ```
 
-详见 `config.yaml` 中的详细注释。
-
----
-
-## 🔧 旧版兼容
-
-- `run.py` — 旧版回测系统入口，仍保留
-- `run_morning.py` — 旧版晨报入口，仍保留
-- `strategy/risk_warning.py` — 旧版风险预警，功能已迁移至 `risk/` 模块
-
----
-
-## 📊 全能数据平台
-
-本仓库也包含原始的全能数据平台功能（网页爬虫、数据分析、ML、Web服务、桌面应用）：
+## 测试
 
 ```bash
-# Web 服务 (FastAPI)
-python run.py --gui      # 桌面应用
+# 运行所有测试
+pytest tests/ -v
+
+# 运行特定测试
+pytest tests/test_db_manager.py -v
+pytest tests/test_anomaly_monitor.py -v
 ```
 
-详情见各模块源代码。
+## 常见问题
+
+### Q: 如何修改推送阈值？
+A: 编辑 `config.yaml` 中的 `anomaly_monitor.push_threshold`
+
+### Q: 如何添加新的 RSS 源？
+A: 编辑 `config.yaml` 中的 `morning.rss_sources`
+
+### Q: 数据库在哪里？
+A: 每日数据库在 `data/daily/` 目录，全局数据库在 `data/global.db`
+
+### Q: 如何备份数据？
+A: 运行 `python run_morning.py --db-backup`
+
+## 许可证
+
+MIT License

@@ -1,8 +1,0 @@
-# 新闻晨报系统专用依赖（轻量，用于 GitHub Actions）
-feedparser==6.0.11
-openai>=1.0.0
-PyYAML==6.0.3
-python-dotenv==1.2.2
-requests==2.32.3
-beautifulsoup4==4.13.3
-lxml==5.3.1
