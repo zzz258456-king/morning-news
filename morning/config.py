@@ -211,6 +211,87 @@ class LoggingConfig:
         self.backup_count = backup_count
 
 
+class AnomalyMonitorConfig:
+    """异动监控配置"""
+    def __init__(
+        self,
+        enabled: bool = True,
+        push_threshold: int = 60,
+        dimensions: Optional[dict] = None,
+    ):
+        self.enabled = enabled
+        self.push_threshold = push_threshold
+        self.dimensions = dimensions or {
+            "macro": {"enabled": True, "weight": 25},
+            "commodity": {"enabled": True, "weight": 25},
+            "tech": {"enabled": True, "weight": 25},
+            "event": {"enabled": True, "weight": 25},
+        }
+
+
+class StockTrackerConfig:
+    """晚间回溯配置"""
+    def __init__(
+        self,
+        enabled: bool = True,
+        tracking_days: int = 5,
+        data_fields: Optional[list] = None,
+    ):
+        self.enabled = enabled
+        self.tracking_days = tracking_days
+        self.data_fields = data_fields or [
+            "open", "high", "low", "close",
+            "volume", "turnover_rate", "change_pct",
+        ]
+
+
+class WatchlistConfig:
+    """特别关注配置"""
+    def __init__(
+        self,
+        enabled: bool = True,
+        groups: Optional[list] = None,
+    ):
+        self.enabled = enabled
+        self.groups = groups or [
+            {"name": "短线", "color": "#FF6B6B"},
+            {"name": "中线", "color": "#4ECDC4"},
+            {"name": "长线", "color": "#45B7D1"},
+        ]
+
+
+class TradeJournalConfig:
+    """操作日志配置"""
+    def __init__(
+        self,
+        enabled: bool = True,
+        emotion_tags: Optional[list] = None,
+        trade_tags: Optional[list] = None,
+    ):
+        self.enabled = enabled
+        self.emotion_tags = emotion_tags or ["自信", "犹豫", "恐惧", "贪婪", "平静"]
+        self.trade_tags = trade_tags or ["技术面", "基本面", "消息面", "资金面"]
+
+
+class DatabaseConfig:
+    """数据库配置"""
+    def __init__(
+        self,
+        daily_path: str = "data/daily",
+        global_path: str = "data/global.db",
+        backup_enabled: bool = True,
+        backup_days: int = 30,
+        auto_cleanup: bool = True,
+        cleanup_days: int = 90,
+    ):
+        self.daily_path = daily_path
+        self.global_path = global_path
+        self.backup_enabled = backup_enabled
+        self.backup_days = backup_days
+        self.auto_cleanup = auto_cleanup
+        self.cleanup_days = cleanup_days
+
+
 class WeChatConfig:
     """微信互联配置"""
     def __init__(
@@ -260,6 +341,21 @@ class MorningConfig:
 
         # 数据更新
         self.data_update = DataUpdateConfig()
+
+        # 异动监控
+        self.anomaly_monitor = AnomalyMonitorConfig()
+
+        # 晚间回溯
+        self.stock_tracker = StockTrackerConfig()
+
+        # 特别关注
+        self.watchlist = WatchlistConfig()
+
+        # 操作日志
+        self.trade_journal = TradeJournalConfig()
+
+        # 数据库
+        self.database = DatabaseConfig()
 
         # 日志
         self.logging = LoggingConfig()
@@ -395,6 +491,53 @@ def _parse_logging_config(raw: dict) -> LoggingConfig:
     )
 
 
+def _parse_anomaly_monitor_config(raw: dict) -> AnomalyMonitorConfig:
+    """解析异动监控配置"""
+    return AnomalyMonitorConfig(
+        enabled=raw.get("enabled", True),
+        push_threshold=int(raw.get("push_threshold", 60)),
+        dimensions=raw.get("dimensions", None),
+    )
+
+
+def _parse_stock_tracker_config(raw: dict) -> StockTrackerConfig:
+    """解析晚间回溯配置"""
+    return StockTrackerConfig(
+        enabled=raw.get("enabled", True),
+        tracking_days=int(raw.get("tracking_days", 5)),
+        data_fields=raw.get("data_fields", None),
+    )
+
+
+def _parse_watchlist_config(raw: dict) -> WatchlistConfig:
+    """解析特别关注配置"""
+    return WatchlistConfig(
+        enabled=raw.get("enabled", True),
+        groups=raw.get("groups", None),
+    )
+
+
+def _parse_trade_journal_config(raw: dict) -> TradeJournalConfig:
+    """解析操作日志配置"""
+    return TradeJournalConfig(
+        enabled=raw.get("enabled", True),
+        emotion_tags=raw.get("emotion_tags", None),
+        trade_tags=raw.get("trade_tags", None),
+    )
+
+
+def _parse_database_config(raw: dict) -> DatabaseConfig:
+    """解析数据库配置"""
+    return DatabaseConfig(
+        daily_path=raw.get("daily_path", "data/daily"),
+        global_path=raw.get("global_path", "data/global.db"),
+        backup_enabled=raw.get("backup_enabled", True),
+        backup_days=int(raw.get("backup_days", 30)),
+        auto_cleanup=raw.get("auto_cleanup", True),
+        cleanup_days=int(raw.get("cleanup_days", 90)),
+    )
+
+
 # ---------- 全局单例 ----------
 
 _config: Optional[MorningConfig] = None
@@ -469,6 +612,26 @@ def load_config() -> MorningConfig:
     # ---- 日志 ----
     logging_yaml = yaml_cfg.get("logging", {})
     cfg.logging = _parse_logging_config(logging_yaml)
+
+    # ---- 异动监控 ----
+    anomaly_yaml = yaml_cfg.get("anomaly_monitor", {})
+    cfg.anomaly_monitor = _parse_anomaly_monitor_config(anomaly_yaml)
+
+    # ---- 晚间回溯 ----
+    tracker_yaml = yaml_cfg.get("stock_tracker", {})
+    cfg.stock_tracker = _parse_stock_tracker_config(tracker_yaml)
+
+    # ---- 特别关注 ----
+    watchlist_yaml = yaml_cfg.get("watchlist", {})
+    cfg.watchlist = _parse_watchlist_config(watchlist_yaml)
+
+    # ---- 操作日志 ----
+    journal_yaml = yaml_cfg.get("trade_journal", {})
+    cfg.trade_journal = _parse_trade_journal_config(journal_yaml)
+
+    # ---- 数据库 ----
+    database_yaml = yaml_cfg.get("database", {})
+    cfg.database = _parse_database_config(database_yaml)
 
     # ---- 微信互联 ----
     wechat_yaml = yaml_cfg.get("wechat", {})

@@ -94,3 +94,68 @@ logging:
   file: "logs/system.log"
   max_bytes: 10485760
   backup_count: 7
+
+# ---------- 异动监控 ----------
+anomaly_monitor:
+  enabled: true
+  push_threshold: 60
+  dimensions:
+    macro:
+      enabled: true
+      weight: 25
+      data_sources:
+        - "macro_bank_usa_interest_rate"
+        - "macro_china_cpi_yearly"
+    commodity:
+      enabled: true
+      weight: 25
+      data_sources:
+        - "futures_main_sina"
+        - "spot_golden_benchmark_sge"
+    tech:
+      enabled: true
+      weight: 25
+      keywords: ["AI", "芯片", "新能源", "半导体", "人工智能"]
+    event:
+      enabled: true
+      weight: 25
+      keywords: ["政策", "地缘", "制裁", "战争", "灾害"]
+
+# ---------- 晚间回溯 ----------
+stock_tracker:
+  enabled: true
+  tracking_days: 5
+  data_fields:
+    - open
+    - high
+    - low
+    - close
+    - volume
+    - turnover_rate
+    - change_pct
+
+# ---------- 特别关注 ----------
+watchlist:
+  enabled: true
+  groups:
+    - name: "短线"
+      color: "#FF6B6B"
+    - name: "中线"
+      color: "#4ECDC4"
+    - name: "长线"
+      color: "#45B7D1"
+
+# ---------- 操作日志 ----------
+trade_journal:
+  enabled: true
+  emotion_tags: ["自信", "犹豫", "恐惧", "贪婪", "平静"]
+  trade_tags: ["技术面", "基本面", "消息面", "资金面"]
+
+# ---------- 数据库 ----------
+database:
+  daily_path: "data/daily"
+  global_path: "data/global.db"
+  backup_enabled: true
+  backup_days: 30
+  auto_cleanup: true
+  cleanup_days: 90
