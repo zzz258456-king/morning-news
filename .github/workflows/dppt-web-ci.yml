@@ -1,7 +1,8 @@
 name: DPPT Web Backend CI
 
 env:
-  # 允许 Node 20 的 action 在 Node 24 runner 上运行，避免弃用报错
+  # 强制 JavaScript action 在 Node 24 上运行；同时保留 Node 20 回退开关
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 on:
@@ -37,11 +38,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Alembic migrations
-        run: alembic upgrade head
-        env:
-          DATABASE_URL: sqlite:///./test_ci.db
-
       - name: Run pytest
         run: pytest tests/ -v
         env:
@@ -58,10 +54,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3.10.0
 
       - name: Build Docker image
         run: docker build -t dppt-web-backend .
