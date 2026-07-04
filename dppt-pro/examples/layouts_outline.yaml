@@ -1,0 +1,120 @@
+title: DPPT Pro 布局演示
+theme: business
+author: DPPT Pro
+slides:
+  - type: cover
+    title: DPPT Pro 布局系统
+    subtitle: 10+ 种商业级版式一键生成
+    info: DPPT Pro 出品 · 2026.07
+
+  - type: toc
+    title: 目录
+    items:
+      - 章节分隔页
+      - 三栏并列
+      - 时间轴
+      - 团队介绍
+      - 数据卡片
+      - 方案对比
+
+  - type: section
+    layout: title-only
+    number: "01"
+    title: 产品定位
+    subtitle: 从一句话描述开始
+
+  - type: content
+    layout: three-column
+    title: 三栏并列布局
+    columns:
+      - title: 高效
+        icon: clock
+        bullets:
+          - 一键生成完整 PPT
+          - 商业级版式自动匹配
+          - 主题系统统一视觉
+      - title: 可控
+        icon: settings
+        bullets:
+          - DSL 描述每个元素
+          - 支持图表/表格/图片
+          - 检查器自动发现质量问题
+      - title: 可扩展
+        icon: upload
+        bullets:
+          - 自定义布局模板
+          - 多主题切换
+          - 与 Web 端集成
+
+  - type: content
+    layout: timeline
+    title: 发展历程
+    steps:
+      - label: 2024 Q1
+        description: 项目启动，完成 DSL 与渲染器原型
+      - label: 2024 Q3
+        description: 接入 Claude API，实现 AI 一键生成
+      - label: 2025 Q1
+        description: 扩展 10+ 布局，支持 SVG 与动画母版
+      - label: 2026
+        description: 与 dppt-web 集成，形成完整工作流
+
+  - type: content
+    layout: team
+    title: 核心团队
+    members:
+      - name: 张三
+        role: 产品负责人
+      - name: 李四
+        role: 技术负责人
+      - name: 王五
+        role: 设计负责人
+      - name: 赵六
+        role: 运营负责人
+
+  - type: content
+    layout: data-cards
+    title: 核心指标
+    stats:
+      - value: 10+
+        label: 布局模板
+        icon: target
+        note: 覆盖常见商业场景
+      - value: 95%
+        label: 生成可用率
+        icon: check-circle
+        note: 一次生成即可使用
+      - value: 3x
+        label: 效率提升
+        icon: trending-up
+        note: 相比手工制作
+      - value: 0
+        label: 设计门槛
+        icon: bulb
+        note: 自然语言即可生成
+
+  - type: content
+    layout: comparison
+    title: 方案对比
+    left:
+      title: 传统方式
+      bullets:
+        - 逐页手动排版
+        - 配色字体不统一
+        - 修改成本高
+    right:
+      title: DPPT Pro
+      bullets:
+        - AI 自动生成内容
+        - 主题系统统一视觉
+        - 版式可复用可扩展
+
+  - type: content
+    layout: quote
+    title: 设计理念
+    quote: 好的 PPT 不是信息的堆砌，而是观点的清晰表达。
+    source: DPPT Pro 设计原则
+
+  - type: closing
+    title: 谢谢观看
+    info: DPPT Pro · 让每一份演示都足够专业

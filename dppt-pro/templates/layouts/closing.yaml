@@ -1,0 +1,26 @@
+---
+# 结束页布局
+name: closing
+elements:
+  - type: shape
+    name: 全页背景
+    shape_type: rect
+    bounds: {x: 0, y: 0, width: 13.333, height: 7.5}
+    fill: {type: solid, color: "$primary"}
+  - type: text
+    name: 结束语
+    text: "{{title}}"
+    style:
+      font_family: "$heading"
+      font_size: 60pt
+      color: "#FFFFFF"
+      bold: true
+    bounds: {x: 0.8, y: 2.8, width: 11.7, height: 1.3}
+  - type: text
+    name: 品牌信息
+    text: "{{info}}"
+    style:
+      font_family: "$body"
+      font_size: 20pt
+      color: "#CBD5E1"
+    bounds: {x: 0.8, y: 4.3, width: 11.7, height: 0.7}

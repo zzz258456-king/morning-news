@@ -1,0 +1,183 @@
+---
+version: "0.1"
+title: Z 世代消费趋势洞察
+author: DPPT Pro
+description: 商业级演示示例，展示 DPPT Pro 的 DSL 能力
+theme:
+  name: business
+  colors:
+    primary: "#0F172A"
+    secondary: "#3B82F6"
+    accent: "#F59E0B"
+    background: "#F8FAFC"
+    surface: "#FFFFFF"
+    text: "#1E293B"
+    muted: "#64748B"
+  fonts:
+    heading: "Microsoft YaHei"
+    body: "Microsoft YaHei"
+  text_styles:
+    h1:
+      font_family: "$heading"
+      font_size: 54pt
+      color: "$primary"
+      bold: true
+    h2:
+      font_family: "$heading"
+      font_size: 36pt
+      color: "$primary"
+      bold: true
+    h3:
+      font_family: "$heading"
+      font_size: 24pt
+      color: "$text"
+      bold: true
+    body:
+      font_family: "$body"
+      font_size: 18pt
+      color: "$text"
+    caption:
+      font_family: "$body"
+      font_size: 14pt
+      color: "$muted"
+  page_size: [13.333, 7.5]
+pages:
+  - type: cover
+    layout: cover
+    title: Z 世代消费趋势洞察
+    subtitle: 2026 年度研究报告
+    background:
+      type: solid
+      color: "$background"
+    elements:
+      - type: shape
+        name: 顶部色块
+        shape_type: rect
+        bounds: {x: 0, y: 0, width: 13.333, height: 0.15}
+        fill: {type: solid, color: "$secondary"}
+      - type: shape
+        name: 主视觉背景
+        shape_type: rounded_rect
+        rounded_radius: 0.2
+        bounds: {x: 0.6, y: 1, width: 12.1, height: 5.5}
+        fill: {type: solid, color: "$surface"}
+        shadow: {color: "#000000", blur: 20, offset: [0, 4], alpha: 0.08}
+      - type: text
+        name: 标题
+        text: Z 世代消费趋势洞察
+        style: $h1
+        bounds: {x: 1.2, y: 2.2, width: 10.9, height: 1.3}
+      - type: text
+        name: 副标题
+        text: 2026 年度研究报告
+        style: $h3
+        bounds: {x: 1.2, y: 3.6, width: 10.9, height: 0.7}
+      - type: text
+        name: 报告信息
+        text: DPPT Pro 出品 · 2026.07
+        style: $caption
+        bounds: {x: 1.2, y: 5.2, width: 10.9, height: 0.5}
+
+  - type: toc
+    layout: toc
+    title: 目录
+    background:
+      type: solid
+      color: "$background"
+    elements:
+      - type: text
+        text: 目录
+        style: $h2
+        bounds: {x: 0.8, y: 0.6, width: 11.7, height: 0.9}
+      - type: text
+        text: |
+          01  Z 世代画像
+          02  消费偏好变迁
+          03  渠道与触达
+          04  数据洞察
+          05  总结与建议
+        style: $body
+        bounds: {x: 1.5, y: 1.8, width: 10, height: 4}
+
+  - type: content
+    layout: two-column
+    title: Z 世代画像
+    elements:
+      - type: text
+        text: 01  Z 世代画像
+        style: $h2
+        bounds: {x: 0.8, y: 0.6, width: 11.7, height: 0.9}
+      - type: text
+        text: |
+          Z 世代（1995-2010 年出生）是当前最具消费潜力的群体之一。
+
+          核心特征：
+          · 数字化原住民，社交媒体重度用户
+          · 注重个性表达与情感价值
+          · 对品牌authenticity要求高
+          · 愿意为可持续产品支付溢价
+        style: $body
+        bounds: {x: 0.8, y: 1.8, width: 6, height: 4}
+      - type: shape
+        shape_type: rounded_rect
+        bounds: {x: 7.2, y: 1.8, width: 5.2, height: 4}
+        fill: {type: solid, color: "$surface"}
+        border: {width: 1, color: "#E2E8F0"}
+      - type: text
+        text: |
+          关键数据
+          规模：2.8 亿人
+          线上消费占比：47%
+          月均可支配收入：¥4,850
+        style: $body
+        bounds: {x: 7.6, y: 2.2, width: 4.4, height: 3}
+
+  - type: data
+    layout: chart
+    title: 年度消费支出分布
+    elements:
+      - type: text
+        text: 02  消费偏好变迁
+        style: $h2
+        bounds: {x: 0.8, y: 0.6, width: 11.7, height: 0.9}
+      - type: chart
+        chart_type: bar
+        labels: [餐饮, 服饰, 数码, 美妆, 文娱, 旅行]
+        series:
+          - name: 2024
+            data: [2800, 1500, 2200, 1200, 900, 1800]
+          - name: 2025
+            data: [3100, 1350, 2600, 1100, 1200, 2400]
+        colors: ["$secondary", "$accent"]
+        bounds: {x: 0.8, y: 1.7, width: 7.5, height: 4.8}
+      - type: text
+        text: |
+          洞察要点
+          · 体验型消费（餐饮、旅行）持续增长
+          · 数码产品支出增幅最大
+          · 服饰美妆占比略有下降
+        style: $body
+        bounds: {x: 8.6, y: 1.7, width: 4, height: 4}
+
+  - type: closing
+    layout: closing
+    title: 谢谢观看
+    background:
+      type: solid
+      color: "$primary"
+    elements:
+      - type: text
+        text: 谢谢观看
+        style:
+          font_family: "$heading"
+          font_size: 60pt
+          color: "#FFFFFF"
+          bold: true
+        bounds: {x: 0.8, y: 2.8, width: 11.7, height: 1.3}
+      - type: text
+        text: DPPT Pro · 让每一份演示都足够专业
+        style:
+          font_family: "$body"
+          font_size: 20pt
+          color: "#CBD5E1"
+        bounds: {x: 0.8, y: 4.3, width: 11.7, height: 0.7}

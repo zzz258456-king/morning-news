@@ -1,0 +1,39 @@
+---
+name: tech
+colors:
+  primary: "#111827"
+  secondary: "#06B6D4"
+  accent: "#8B5CF6"
+  background: "#0B1120"
+  surface: "#1E293B"
+  text: "#F1F5F9"
+  muted: "#94A3B8"
+fonts:
+  heading: "Microsoft YaHei"
+  body: "Microsoft YaHei"
+text_styles:
+  h1:
+    font_family: "$heading"
+    font_size: 54pt
+    color: "$text"
+    bold: true
+  h2:
+    font_family: "$heading"
+    font_size: 36pt
+    color: "$secondary"
+    bold: true
+  h3:
+    font_family: "$heading"
+    font_size: 24pt
+    color: "$text"
+    bold: true
+  body:
+    font_family: "$body"
+    font_size: 18pt
+    color: "$text"
+  caption:
+    font_family: "$body"
+    font_size: 14pt
+    color: "$muted"
+page_size: [13.333, 7.5]
+page_margin: {left: 0.8, top: 0.6, right: 0.8, bottom: 0.6}

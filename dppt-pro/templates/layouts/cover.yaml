@@ -1,0 +1,26 @@
+---
+# 封面页布局
+name: cover
+elements:
+  - type: shape
+    name: 主视觉卡片
+    shape_type: rounded_rect
+    rounded_radius: 0.2
+    bounds: {x: 0.6, y: 1, width: 12.1, height: 5.5}
+    fill: {type: solid, color: "$surface"}
+    shadow: {color: "#000000", blur: 20, offset: [0, 4], alpha: 0.08}
+  - type: text
+    name: 标题
+    text: "{{title}}"
+    style: $h1
+    bounds: {x: 1.2, y: 2.2, width: 10.9, height: 1.3}
+  - type: text
+    name: 副标题
+    text: "{{subtitle}}"
+    style: $h3
+    bounds: {x: 1.2, y: 3.6, width: 10.9, height: 0.7}
+  - type: text
+    name: 报告信息
+    text: "{{info}}"
+    style: $caption
+    bounds: {x: 1.2, y: 5.2, width: 10.9, height: 0.5}

@@ -1,0 +1,25 @@
+---
+# 内容页布局（双栏）
+name: two-column
+elements:
+  - type: text
+    name: 页面标题
+    text: "{{title}}"
+    style: $h2
+    bounds: {x: 0.8, y: 0.6, width: 11.7, height: 0.9}
+  - type: text
+    name: 左栏内容
+    text: "{{left}}"
+    style: $body
+    bounds: {x: 0.8, y: 1.8, width: 6, height: 4}
+  - type: shape
+    name: 右栏卡片
+    shape_type: rounded_rect
+    bounds: {x: 7.2, y: 1.8, width: 5.2, height: 4}
+    fill: {type: solid, color: "$surface"}
+    border: {width: 1, color: "#E2E8F0"}
+  - type: text
+    name: 右栏内容
+    text: "{{right}}"
+    style: $body
+    bounds: {x: 7.6, y: 2.2, width: 4.4, height: 3}

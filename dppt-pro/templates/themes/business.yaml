@@ -1,0 +1,39 @@
+---
+name: business
+colors:
+  primary: "#0F172A"
+  secondary: "#3B82F6"
+  accent: "#F59E0B"
+  background: "#F8FAFC"
+  surface: "#FFFFFF"
+  text: "#1E293B"
+  muted: "#64748B"
+fonts:
+  heading: "Microsoft YaHei"
+  body: "Microsoft YaHei"
+text_styles:
+  h1:
+    font_family: "$heading"
+    font_size: 54pt
+    color: "$primary"
+    bold: true
+  h2:
+    font_family: "$heading"
+    font_size: 36pt
+    color: "$primary"
+    bold: true
+  h3:
+    font_family: "$heading"
+    font_size: 24pt
+    color: "$text"
+    bold: true
+  body:
+    font_family: "$body"
+    font_size: 18pt
+    color: "$text"
+  caption:
+    font_family: "$body"
+    font_size: 14pt
+    color: "$muted"
+page_size: [13.333, 7.5]
+page_margin: {left: 0.8, top: 0.6, right: 0.8, bottom: 0.6}

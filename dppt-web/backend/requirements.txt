@@ -17,3 +17,11 @@ alembic==1.14.0
 psycopg2-binary==2.9.10
 celery==5.4.0
 redis==5.2.1
+# DPPT Pro 渲染依赖
+PyYAML>=6.0
+lxml>=4.9.3
+matplotlib>=3.8.0
+numpy>=1.24.0
+colorama>=0.4.6
+svglib>=1.5.1
+reportlab>=4.0.0

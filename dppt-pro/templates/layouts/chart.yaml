@@ -1,0 +1,18 @@
+---
+# 数据页布局
+name: chart
+elements:
+  - type: text
+    name: 页面标题
+    text: "{{title}}"
+    style: $h2
+    bounds: {x: 0.8, y: 0.6, width: 11.7, height: 0.9}
+  - type: chart
+    name: 主图表
+    chart_type: "{{chart_type}}"
+    bounds: {x: 0.8, y: 1.7, width: 7.5, height: 4.8}
+  - type: text
+    name: 洞察要点
+    text: "{{insights}}"
+    style: $body
+    bounds: {x: 8.6, y: 1.7, width: 4, height: 4}

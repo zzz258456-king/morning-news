@@ -1,0 +1,39 @@
+---
+name: academic
+colors:
+  primary: "#1E3A5F"
+  secondary: "#2563EB"
+  accent: "#D97706"
+  background: "#FFFFFF"
+  surface: "#F8FAFC"
+  text: "#1F2937"
+  muted: "#6B7280"
+fonts:
+  heading: "SimSun"
+  body: "SimSun"
+text_styles:
+  h1:
+    font_family: "$heading"
+    font_size: 44pt
+    color: "$primary"
+    bold: true
+  h2:
+    font_family: "$heading"
+    font_size: 32pt
+    color: "$primary"
+    bold: true
+  h3:
+    font_family: "$heading"
+    font_size: 22pt
+    color: "$text"
+    bold: true
+  body:
+    font_family: "$body"
+    font_size: 18pt
+    color: "$text"
+  caption:
+    font_family: "$body"
+    font_size: 14pt
+    color: "$muted"
+page_size: [13.333, 7.5]
+page_margin: {left: 0.8, top: 0.6, right: 0.8, bottom: 0.6}

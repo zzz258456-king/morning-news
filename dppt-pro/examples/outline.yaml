@@ -1,0 +1,64 @@
+---
+title: Z 世代消费趋势洞察
+author: DPPT Pro
+theme: business
+slides:
+  - type: cover
+    title: Z 世代消费趋势洞察
+    subtitle: 2026 年度研究报告
+    info: DPPT Pro 出品 · 2026.07
+
+  - type: toc
+    title: 目录
+    items:
+      - Z 世代画像
+      - 消费偏好变迁
+      - 渠道与触达
+      - 数据洞察
+      - 总结与建议
+
+  - type: content
+    title: 01  Z 世代画像
+    bullets:
+      - 数字化原住民，社交媒体重度用户
+      - 注重个性表达与情感价值
+      - 对品牌 authenticity 要求高
+      - 愿意为可持续产品支付溢价
+    highlight:
+      title: 关键数据
+      text: |
+        规模：2.8 亿人
+        线上消费占比：47%
+        月均可支配收入：¥4,850
+
+  - type: content
+    title: 02  消费偏好变迁
+    bullets:
+      - 体验型消费（餐饮、旅行）持续增长
+      - 数码产品支出增幅最大
+      - 服饰美妆占比略有下降
+      - 国潮品牌认可度提升
+    highlight:
+      title: 核心洞察
+      text: |
+        从"拥有"到"体验"
+        从"功能"到"情绪"
+
+  - type: chart
+    title: 03  年度消费支出分布
+    chart_type: bar
+    labels: [餐饮, 服饰, 数码, 美妆, 文娱, 旅行]
+    series:
+      - name: 2024
+        data: [2800, 1500, 2200, 1200, 900, 1800]
+      - name: 2025
+        data: [3100, 1350, 2600, 1100, 1200, 2400]
+    colors: ["$secondary", "$accent"]
+    insights:
+      - 体验型消费（餐饮、旅行）持续增长
+      - 数码产品支出增幅最大
+      - 服饰美妆占比略有下降
+
+  - type: closing
+    title: 谢谢观看
+    info: DPPT Pro · 让每一份演示都足够专业

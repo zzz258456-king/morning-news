@@ -1,0 +1,59 @@
+version: "0.1"
+title: Icon 渲染测试
+theme:
+  name: business
+  colors:
+    primary: "#0F172A"
+    secondary: "#3B82F6"
+    accent: "#F59E0B"
+    background: "#F8FAFC"
+    surface: "#FFFFFF"
+    text: "#1E2937"
+    muted: "#64748B"
+  fonts:
+    heading: "Microsoft YaHei"
+    body: "Microsoft YaHei"
+  text_styles:
+    h2:
+      font_family: "$heading"
+      font_size: 36pt
+      color: "$primary"
+      bold: true
+  page_size: [13.333, 7.5]
+pages:
+  - type: content
+    title: 图标测试
+    background: {type: solid, color: "$background"}
+    elements:
+      - type: text
+        text: 图标测试
+        style: $h2
+        bounds: {x: 0.8, y: 0.6, width: 11.7, height: 0.9}
+      - type: icon
+        icon_name: chart
+        color: "$secondary"
+        bounds: {x: 1, y: 2, width: 1, height: 1}
+      - type: icon
+        icon_name: users
+        color: "$accent"
+        bounds: {x: 3, y: 2, width: 1, height: 1}
+      - type: icon
+        icon_name: check-circle
+        color: "$primary"
+        bounds: {x: 5, y: 2, width: 1, height: 1}
+      - type: icon
+        icon_name: bulb
+        color: "$secondary"
+        bounds: {x: 7, y: 2, width: 1, height: 1}
+      - type: icon
+        icon_name: shield
+        color: "$primary"
+        bounds: {x: 9, y: 2, width: 1, height: 1}
+      - type: icon
+        icon_name: star
+        color: "$accent"
+        bounds: {x: 11, y: 2, width: 1, height: 1}
+      - type: icon
+        svg_path: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+        color: "#F59E0B"
+        bounds: {x: 1, y: 4, width: 1.5, height: 1.5}

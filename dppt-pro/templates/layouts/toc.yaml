@@ -1,0 +1,14 @@
+---
+# 目录页布局
+name: toc
+elements:
+  - type: text
+    name: 目录标题
+    text: "{{title}}"
+    style: $h2
+    bounds: {x: 0.8, y: 0.6, width: 11.7, height: 0.9}
+  - type: text
+    name: 目录项
+    text: "{{items}}"
+    style: $body
+    bounds: {x: 1.5, y: 1.8, width: 10, height: 4}
