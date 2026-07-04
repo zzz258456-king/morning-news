@@ -1,9 +1,8 @@
 name: DPPT Web Backend CI
 
 env:
-  # 强制 JavaScript action 在 Node 24 上运行；同时保留 Node 20 回退开关
+  # 强制 JavaScript action 在 Node 24 runner 上运行
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 on:
   push:
