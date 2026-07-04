@@ -30,6 +30,7 @@ class SlideConfig(BaseModel):
     body: str
     image: Optional[SlideImage] = None
     layout: str = "default"
+    notes: Optional[str] = None
 
 
 class ProjectConfig(BaseModel):

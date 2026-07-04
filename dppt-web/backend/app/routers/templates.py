@@ -1,5 +1,6 @@
-import random
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+from app.store import load_project
+from app.services.claude_service import recommend_templates, ClaudeServiceError
 
 router = APIRouter()
 
@@ -34,36 +35,46 @@ BUILTIN_TEMPLATES = [
     },
 ]
 
-SEARCH_TEMPLATES = [
-    {
-        "id": "search-modern-tech",
-        "name": "Modern Tech",
-        "colors": ["#0F172A", "#3B82F6", "#10B981"],
-        "layout": "16:9",
-        "source": "search",
-    },
-    {
-        "id": "search-warm-neutral",
-        "name": "Warm Neutral",
-        "colors": ["#F5F5F4", "#78716C", "#EA580C"],
-        "layout": "16:9",
-        "source": "search",
-    },
-]
 
-
-def get_template_options(refresh: bool = False):
-    if refresh:
-        # 模拟搜索返回新方案
-        return random.sample(SEARCH_TEMPLATES, min(2, len(SEARCH_TEMPLATES))) + random.sample(BUILTIN_TEMPLATES, 2)
-    return BUILTIN_TEMPLATES[:4]
+def _build_recommended_templates(raw: list, layout: str = "16:9") -> list[dict]:
+    templates = []
+    for i, item in enumerate(raw):
+        colors = item.get("colors", [])
+        if len(colors) < 2:
+            colors = ["#1F3864", "#2E5EAA", "#FFFFFF"]
+        templates.append({
+            "id": f"recommended-{i}",
+            "name": item.get("name", f"推荐方案 {i + 1}"),
+            "colors": colors,
+            "layout": layout,
+            "source": "recommended",
+        })
+    return templates
 
 
 @router.post("/{project_id}/templates")
 def get_templates(project_id: str):
-    return {"project_id": project_id, "templates": get_template_options(False)}
+    project = load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    return {"project_id": project_id, "templates": BUILTIN_TEMPLATES}
 
 
 @router.post("/{project_id}/templates/refresh")
 def refresh_templates(project_id: str):
-    return {"project_id": project_id, "templates": get_template_options(True)}
+    project = load_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+
+    title = project.get("title", "")
+    outline = project.get("outline", [])
+
+    try:
+        raw = recommend_templates(title, outline)
+        recommended = _build_recommended_templates(raw, project.get("template", {}).get("layout", "16:9"))
+        # 推荐方案与内置方案混合
+        templates = recommended[:2] + BUILTIN_TEMPLATES[:2]
+        return {"project_id": project_id, "templates": templates}
+    except ClaudeServiceError:
+        # 未配置 API 时返回内置模板
+        return {"project_id": project_id, "templates": BUILTIN_TEMPLATES}
