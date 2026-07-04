@@ -1,9 +1,5 @@
 name: DPPT Web Backend CI
 
-env:
-  # 强制 JavaScript action 在 Node 24 runner 上运行
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 on:
   push:
     branches: [main, master]
@@ -18,17 +14,17 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     defaults:
       run:
         working-directory: dppt-web/backend
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5.5.0
+        uses: actions/setup-python@v5
         with:
           python-version: '3.13'
 
@@ -45,7 +41,7 @@ jobs:
           CELERY_RESULT_BACKEND: cache+memory://
 
   docker-build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     needs: test
     defaults:
       run:
@@ -53,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.10.0
