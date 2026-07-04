@@ -119,7 +119,7 @@
 | Celery eager 模式 | - | broker 以 memory:// 开头，task_always_eager=True | 符合预期 | ✓ |
 | Alembic 迁移 | DATABASE_URL=sqlite:///./test_ci.db | upgrade head 成功 | 成功 | ✓ |
 | pytest 全量回归 | pytest tests/ -v | 14 passed | 14 passed | ✓ |
-| GitHub Actions Node 20 弃用修复 | 更新 workflow | 无 Node 20 报错 | 已推送 commit 64e6e4c | 待验证 |
+| GitHub Actions Node 24 兼容修复 | runner 回退到 ubuntu-22.04 | 无 Node 24 强制报错 | 已推送 commit 41d3490 | 待验证 |
 
 ## Error Log
 
