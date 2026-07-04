@@ -28,6 +28,9 @@ def db_session():
 @pytest.fixture(autouse=True)
 def clean_ppt_jobs(db_session):
     """每个测试前清空 ppt_jobs 表，保证测试隔离。"""
+    from app.database import init_db
+
+    init_db()  # 确保表已创建（ lifespan 触发前 fixture 可能先执行）
     db_session.query(PPTJob).delete()
     db_session.commit()
     yield
