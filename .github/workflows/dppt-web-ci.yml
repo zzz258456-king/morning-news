@@ -1,5 +1,9 @@
 name: DPPT Web Backend CI
 
+env:
+  # 允许 Node 20 的 action 在 Node 24 runner 上运行，避免弃用报错
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
 on:
   push:
     branches: [main, master]
@@ -14,7 +18,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: dppt-web/backend
@@ -46,7 +50,7 @@ jobs:
           CELERY_RESULT_BACKEND: cache+memory://
 
   docker-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: test
     defaults:
       run:
