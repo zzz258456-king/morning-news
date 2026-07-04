@@ -119,6 +119,7 @@
 | Celery eager 模式 | - | broker 以 memory:// 开头，task_always_eager=True | 符合预期 | ✓ |
 | Alembic 迁移 | DATABASE_URL=sqlite:///./test_ci.db | upgrade head 成功 | 成功 | ✓ |
 | pytest 全量回归 | pytest tests/ -v | 14 passed | 14 passed | ✓ |
+| GitHub Actions Node 20 弃用修复 | 更新 workflow | 无 Node 20 报错 | 已推送 commit 99adb34 | ✓ |
 
 ## Error Log
 
@@ -129,6 +130,7 @@
 | 2026-07-04 | JobResponse 缺少 input_data 字段 | 1 | 在 `app/schemas.py` 的 JobResponse 中补充该字段 |
 | 2026-07-04 | Alembic 读取 alembic.ini 中文编码失败 | 1 | alembic.ini 使用占位符 URL，env.py 动态从 app.database.DATABASE_URL 读取 |
 | 2026-07-04 | Celery result backend `memory://` 不被支持 | 1 | backend 改为 `cache+memory://` |
+| 2026-07-04 | GitHub Actions 报错 Node.js 20 已弃用 | 1 | 固定 runner 为 ubuntu-24.04，添加 `ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true` |
 
 ## 5-Question Reboot Check
 
